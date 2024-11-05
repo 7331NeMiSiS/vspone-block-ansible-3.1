@@ -31,7 +31,7 @@
           state: "present"
           name: "DC1-ESXi-222"
           port: "CL1-A"
-          ldevs: "{{ ldev_create.data.ldev_id }}"
+          ldevs: "{{ ldev_id }}"
       register: host_group_create
 
     - debug:
