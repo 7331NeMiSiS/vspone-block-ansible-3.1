@@ -17,7 +17,7 @@
       address: "{{ storage_address }}"
       username: "{{ vault_storage_username }}"
       password: "{{ vault_storage_secret }}"
-
+  tasks:
 ####################################################################
 # Task 6 : Present ldevs to hostgroup
 ####################################################################
