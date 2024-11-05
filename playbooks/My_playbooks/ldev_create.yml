@@ -32,8 +32,8 @@
         spec:
           pool_id: 0
           size: "{{ ldev_size }}"
-          capacity_saving: "{{ ldev_capacity_saving_7 }}"
-          data_reduction_share: "{{ ldev_data_reduction_share_7 }}"
+          capacity_saving: "compression_deduplication"
+          data_reduction_share: "true"
       register: ldev_create
 
 
