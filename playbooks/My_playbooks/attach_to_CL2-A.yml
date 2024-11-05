@@ -1,0 +1,19 @@
+
+####################################################################
+# Task 6 : Present ldevs to hostgroup
+####################################################################
+    - name: Present ldevs to hostgroup CL2-A
+      hv_hg:
+        connection_info: "{{ connection_info }}"
+        storage_system_info:
+          serial: "{{ storage_serial }}"
+        state: "{{ state_present }}"
+        spec:
+          state: "present"
+          name: "DC1-ESXi-222"
+          port: "CL1-A"
+          ldevs: "{{ ldev_create.data.ldev_id }}"
+      register: host_group_create
+
+    - debug:
+        var: host_group_create
