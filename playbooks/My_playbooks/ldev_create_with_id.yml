@@ -1,0 +1,40 @@
+####################################################################
+# Example : LDEV  Playbook
+####################################################################
+- name: Logical Device Module
+  hosts: localhost
+  gather_facts: false
+  collections:
+    - hitachivantara.vspone_block.vsp
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+    - vsp_direct_variables.yml
+
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+
+    ###########################################################################
+    # Task 7 : Create ldev with capacity saving and data_reduction_share
+    ###########################################################################
+    - name: Create ldev with capacity saving and data_reduction_share
+      hv_ldev:
+        connection_info: "{{ connection_info }}"
+        storage_system_info:
+          serial: "{{ storage_serial }}"
+        state: "present"
+        spec:
+          pool_id: 0
+          ldev_id: "{{ldev_id}}"
+          size: "{{ ldev_size }}GB"
+      register: ldev_create
+
+
+    - debug:
+        var: ldev_create
