@@ -31,7 +31,7 @@
         state: "present"
         spec:
           pool_id: 0
-          size: "{{ ldev_size }}"
+          size: "{{ ldev_size }}GB"
           capacity_saving: "compression_deduplication"
           data_reduction_share: "true"
       register: ldev_create
