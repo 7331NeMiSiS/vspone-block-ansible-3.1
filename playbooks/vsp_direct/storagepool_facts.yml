@@ -41,7 +41,7 @@
         storage_system_info:
           serial: "{{ storage_serial }}"
         spec:
-          pool_id: "{{ storagepool_facts_pool_id_2 }}"
+          pool_id: "0"
       register: result
 
     - debug:

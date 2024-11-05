@@ -30,18 +30,3 @@
 
     - debug:
         var: result
-
-####################################################################
-# Task 2 : Get storage system facts using query
-####################################################################
-    - name: Get storage system facts using query
-      hv_storagesystem_facts:
-        connection_info: "{{ connection_info }}"
-        storage_system_info:
-          serial: "{{ storage_serial }}"
-        spec:
-          query: "{{ storagesystem_facts_query_2 }}"
-      register: result
-
-    - debug:
-        var: result
