@@ -30,7 +30,7 @@
         spec:
           state: "present"
           name: "DC1-ESXi-222"
-          port: "CL1-A"
+          port: "CL2-A"
           ldevs: "{{ ldev_create.data.ldev_id }}"
       register: host_group_create
 
