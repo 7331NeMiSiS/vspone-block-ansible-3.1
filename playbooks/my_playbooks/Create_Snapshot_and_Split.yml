@@ -35,6 +35,7 @@
           allocate_new_consistency_group: "{{ shadow_image_pair_new_consistency_group_1 }}"
           copy_pace_track_size: "{{ shadow_image_pair_copy_pace_track_size_1 }}"
           enable_quick_mode: "{{ shadow_image_pair_enable_quick_mode_1 }}"
+          auto_split: true
       register: result
 
     - debug:
