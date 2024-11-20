@@ -32,7 +32,6 @@
         spec:
           primary_volume_id: "{{ snapshot_source_volume }}"
           secondary_volume_id: "{{ snapshot_destination_volume }}"
-          allocate_new_consistency_group: "false"
           copy_pace_track_size: "{{ shadow_image_pair_copy_pace_track_size_1 }}"
           enable_quick_mode: "{{ shadow_image_pair_enable_quick_mode_1 }}"
           auto_split: true
