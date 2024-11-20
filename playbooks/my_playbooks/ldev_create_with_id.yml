@@ -38,3 +38,8 @@
 
     - debug:
         var: ldev_create
+
+    - name: "Set ldev_id for workflow"
+      set_stats:
+        data:
+          ldev_id:  "{{ ldev_create.data.ldev_id }}"
