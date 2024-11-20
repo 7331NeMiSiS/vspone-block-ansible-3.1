@@ -28,7 +28,7 @@
         connection_info: "{{ connection_info }}"
         storage_system_info:
           serial: "{{ storage_serial }}"
-        state: "{{ state_present }}"
+        state: "{{ state_sync }}"
         spec:
           primary_volume_id: "{{ snapshot_source_volume }}"
           secondary_volume_id: "{{ snapshot_destination_volume }}"
@@ -49,8 +49,8 @@
           serial: "{{ storage_serial }}"
         state: "{{ state_split }}"
         spec:
-          primary_volume_id: "{{ shadow_image_pair_pvol_2 }}"
-          secondary_volume_id: "{{ shadow_image_pair_svol_2 }}"
+          primary_volume_id: "{{ snapshot_source_volume }}"
+          secondary_volume_id: "{{ snapshot_destination_volume }}"
           enable_quick_mode: "{{ shadow_image_pair_enable_quick_mode_2 }}"
           enable_read_write: "{{ shadow_image_pair_enable_read_write_2 }}"
       register: result
