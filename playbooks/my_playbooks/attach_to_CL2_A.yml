@@ -18,9 +18,9 @@
       username: "{{ vault_storage_username }}"
       password: "{{ vault_storage_secret }}"
   tasks:
-####################################################################
-# Task 6 : Present ldevs to hostgroup
-####################################################################
+    ####################################################################
+    # Task 6 : Present ldevs to hostgroup
+    ####################################################################
     - name: Present ldevs to hostgroup CL2-A
       hv_hg:
         connection_info: "{{ connection_info }}"
@@ -29,7 +29,7 @@
         state: "{{ state_present }}"
         spec:
           state: "present"
-          name: "DC1-ESXi-222"
+          name: "{{host_group_name}}"
           port: "CL2-A"
           ldevs: "{{ ldev_id }}"
       register: host_group_create

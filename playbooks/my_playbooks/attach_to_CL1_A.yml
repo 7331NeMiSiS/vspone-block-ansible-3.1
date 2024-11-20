@@ -26,7 +26,7 @@
       state: "{{ state_present }}"
       spec:
         state: "present"
-        name: "DC1-ESXi-222"
+        name: "{{host_group_name}}"
         port: "CL1-A"
         ldevs: "{{ ldev_id }}"
     register: host_group_create
