@@ -376,7 +376,7 @@ shadow_image_pair_svol_1 : 277
 shadow_image_pair_new_consistency_group_1 : true
 shadow_image_pair_copy_pace_track_size_1 : MEDIUM
 shadow_image_pair_auto_split_1 : true
-shadow_image_pair_enable_quick_mode_1 : false
+shadow_image_pair_enable_quick_mode_1 : true
 ####################################################################
 # Task 2 : Split shadow image pair
 ####################################################################
