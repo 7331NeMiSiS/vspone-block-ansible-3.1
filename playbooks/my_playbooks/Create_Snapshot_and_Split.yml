@@ -32,7 +32,6 @@
         spec:
           primary_volume_id: "{{ snapshot_source_volume }}"
           secondary_volume_id: " {{ snapshot_destination_volume }}"
-          allocate_new_consistency_group: " {{ shadow_image_pair_new_consistency_group_4 }}"
           consistency_group_id: " {{ shadow_image_pair_consistency_group_id_4 }}"
           copy_pace_track_size: "{{ shadow_image_pair_copy_pace_track_size_4 }}"
       register: clone_job
