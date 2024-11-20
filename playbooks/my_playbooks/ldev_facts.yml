@@ -1,0 +1,36 @@
+####################################################################
+# Example : LDEV  Playbook
+####################################################################
+- name: Logical Device Module
+  hosts: localhost
+  gather_facts: false
+  collections:
+    - hitachivantara.vspone_block.vsp
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+    - vsp_direct_variables.yml
+
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+####################################################################
+# Task 6 : Get one ldev with detailed info
+####################################################################
+    - name: Get one ldev with detailed info
+      hv_ldev_facts:
+        connection_info: "{{ connection_info }}"
+        storage_system_info:
+          serial: "{{ storage_serial }}"
+        spec:
+          ldev_id: "{{ ldev_id }}"
+          is_detailed: "{{ ldev_facts_is_detailed_6 }}"
+      register: result
+
+    - debug:
+        var: result
