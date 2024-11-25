@@ -34,6 +34,7 @@
           size: "{{ ldev_size }}GB"
           capacity_saving: "compression_deduplication"
           data_reduction_share: "true"
+          name: "JDT"
       register: ldev_create
 
 
