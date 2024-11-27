@@ -34,7 +34,7 @@
           size: "{{ ldev_size }}GB"
           capacity_saving: "compression_deduplication"
           data_reduction_share: "true"
-          name: "JDT"
+          name: "JDT-Test123"
       register: ldev_create
 
 
