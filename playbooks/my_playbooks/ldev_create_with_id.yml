@@ -33,6 +33,7 @@
           pool_id: 0
           ldev_id: "{{ldev_id}}"
           size: "{{ ldev_size }}GB"
+          name: "William"
       register: ldev_create
 
 
