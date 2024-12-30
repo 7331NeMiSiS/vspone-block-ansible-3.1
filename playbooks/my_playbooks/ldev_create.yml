@@ -30,7 +30,7 @@
           serial: "{{ storage_serial }}"
         state: "present"
         spec:
-          pool_id: 0
+          pool_id: 1
           size: "{{ ldev_size }}GB"
           capacity_saving: "compression_deduplication"
           data_reduction_share: "true"

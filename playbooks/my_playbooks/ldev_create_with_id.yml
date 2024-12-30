@@ -30,7 +30,7 @@
           serial: "{{ storage_serial }}"
         state: "present"
         spec:
-          pool_id: 0
+          pool_id: 1
           ldev_id: "{{ldev_id}}"
           size: "{{ ldev_size }}GB"
           name: "William"
