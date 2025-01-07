@@ -1,0 +1,53 @@
+####################################################################
+# Example : LDEV  Playbook
+####################################################################
+- name: Logical Device Module
+  hosts: localhost
+  gather_facts: false
+  collections:
+    - hitachivantara.vspone_block.vsp
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+    - vsp_direct_variables.yml
+
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+
+    ###########################################################################
+    # Task 7 : Create ldev with capacity saving and data_reduction_share
+    ###########################################################################
+    - name: Create ldev with capacity saving and data_reduction_share
+      hv_ldev:
+        connection_info: "{{ connection_info }}"
+        storage_system_info:
+          serial: "{{ storage_serial }}"
+        state: "present"
+        spec:
+          pool_id: 1
+          size: "{{ ldev_size }}GB"
+          capacity_saving: "compression_deduplication"
+          data_reduction_share: "true"
+          name: "{{te_username}}"
+      register: ldev_create
+
+
+    - debug:
+        var: ldev_create
+
+    - name: "Set ldev_id for workflow"
+      set_stats:
+        data:
+          ldev_id:  "{{ ldev_create.data.ldev_id }}"
+
+
+    - name: "Set NAA for workflow"
+      set_stats:
+        data:
+          vcenter_datastore_naa: "{{ ldev_create.data.canonical_name }}"
