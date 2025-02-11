@@ -45,3 +45,8 @@
       set_stats:
         data:
           ldev_id:  "{{ ldev_create.data.ldev_id }}"
+
+    - name: "Set NAA for workflow"
+      set_stats:
+        data:
+          vcenter_datastore_naa: "{{ ldev_create.data.canonical_name }}"
