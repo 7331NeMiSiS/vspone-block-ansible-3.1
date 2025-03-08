@@ -37,8 +37,8 @@
           uri:
             url: "https://{{ item }}/ConfigurationManager/v1/objects/pools"
             method: GET
-            user: "{{ hitachi_username }}"
-            password: "{{ hitachi_password }}"
+            user: "{{ vault_storage_username }}"
+            password: "{{ vault_storage_secret }}"
             force_basic_auth: yes
             validate_certs: no
             headers:
