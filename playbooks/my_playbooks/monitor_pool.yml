@@ -1,0 +1,106 @@
+---
+# Playbook: monitor_hitachi_storage.yml
+# Description: Collects storage pool usage information from Hitachi storage arrays
+#              and stores results sorted by pool capacity.
+
+- name: Monitor Hitachi Storage Arrays
+  hosts: localhost
+  gather_facts: no
+  vars:
+    hitachi_username: "{{ hitachi_user }}"
+    hitachi_password: "{{ hitachi_pass }}"
+    hitachi_storage_ips:
+      - 192.168.180.12
+      - 192.168.181.12
+      - 192.168.180.163
+    results_path: "./hitachi_pool_usage.json"
+    temp_pool_results: []
+
+  tasks:
+    - name: Set up Python environment for Hitachi API
+      pip:
+        name:
+          - requests
+          - urllib3
+        state: present
+      become: yes
+
+    - name: Create temporary directory for results
+      tempfile:
+        state: directory
+        suffix: hitachi
+      register: temp_dir
+
+    - name: Process each Hitachi storage array
+      block:
+        - name: Connect to Hitachi storage array and retrieve pool information
+          uri:
+            url: "https://{{ item }}/ConfigurationManager/v1/objects/pools"
+            method: GET
+            user: "{{ hitachi_username }}"
+            password: "{{ hitachi_password }}"
+            force_basic_auth: yes
+            validate_certs: no
+            headers:
+              Accept: "application/json"
+              Content-Type: "application/json"
+          register: pool_response
+          with_items: "{{ hitachi_storage_ips }}"
+          ignore_errors: yes
+          no_log: yes
+
+        - name: Process pool information and calculate usage percentage
+          set_fact:
+            temp_pool_results: "{{ temp_pool_results + [{'array_ip': item.item, 'pool_id': pool.id, 'pool_name': pool.name, 'capacity_gb': (pool.totalCapacity | int / 1024 / 1024), 'used_capacity_gb': (pool.usedCapacity | int / 1024 / 1024), 'usage_percent': (pool.usedCapacity | int * 100 / pool.totalCapacity | int) | round(2), 'status': pool.status}] }}"
+          loop: "{{ pool_response.results | json_query('[].json.data[]') }}"
+          loop_control:
+            loop_var: pool
+          when: pool_response is succeeded
+
+        - name: Sort pools by capacity (descending)
+          set_fact:
+            sorted_pools: "{{ temp_pool_results | sort(attribute='capacity_gb', reverse=true) }}"
+
+        - name: Group pools by array
+          set_fact:
+            pools_by_array: "{{ pools_by_array | default({}) | combine({item.array_ip: pools_by_array[item.array_ip] | default([]) + [item | reject('equalto', 'array_ip')]}) }}"
+          loop: "{{ sorted_pools }}"
+
+        - name: Generate final report with usage percentages
+          copy:
+            content: "{{ pools_by_array | to_nice_json }}"
+            dest: "{{ results_path }}"
+          delegate_to: localhost
+
+        - name: Print summary of pool usage
+          debug:
+            msg: |
+              Hitachi Storage Array Pool Usage Summary:
+              {% for array_ip, pools in pools_by_array.items() %}
+              Storage Array: {{ array_ip }}
+              {% for pool in pools %}
+              - Pool: {{ pool.pool_name }} (ID: {{ pool.pool_id }})
+                Capacity: {{ pool.capacity_gb | round(2) }} GB
+                Used: {{ pool.used_capacity_gb | round(2) }} GB
+                Usage: {{ pool.usage_percent }}%
+                Status: {{ pool.status }}
+              {% endfor %}
+              {% endfor %}
+
+      rescue:
+        - name: Report error when processing storage arrays
+          debug:
+            msg: "Failed to collect information from one or more storage arrays. Please check credentials and connectivity."
+
+      always:
+        - name: Clean up temporary directory
+          file:
+            path: "{{ temp_dir.path }}"
+            state: absent
+          when: temp_dir.path is defined
+
+    - name: Alert on high pool usage
+      debug:
+        msg: "WARNING: Pool {{ item.pool_name }} on array {{ item.array_ip }} has {{ item.usage_percent }}% usage, which exceeds threshold!"
+      loop: "{{ sorted_pools }}"
+      when: item.usage_percent | float > 85
