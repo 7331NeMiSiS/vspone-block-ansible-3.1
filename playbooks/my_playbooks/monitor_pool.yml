@@ -17,13 +17,6 @@
     temp_pool_results: []
 
   tasks:
-    - name: Set up Python environment for Hitachi API
-      pip:
-        name:
-          - requests
-          - urllib3
-        state: present
-      become: yes
 
     - name: Create temporary directory for results
       tempfile:
