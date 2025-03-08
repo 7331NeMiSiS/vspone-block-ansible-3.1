@@ -47,13 +47,17 @@
           debug:
             var: pool_response
 
+        
+
         - name: Process pool information and calculate usage percentage
           set_fact:
-            temp_pool_results: "{{ temp_pool_results + [{'array_ip': item.item, 'pool_id': pool.id, 'pool_name': pool.name, 'capacity_gb': (pool.totalCapacity | int / 1024 / 1024), 'used_capacity_gb': (pool.usedCapacity | int / 1024 / 1024), 'usage_percent': (pool.usedCapacity | int * 100 / pool.totalCapacity | int) | round(2), 'status': pool.status}] }}"
-          loop: "{{ pool_response.results | json_query('[].json.data[]') }}"
+            temp_pool_results: "{{ temp_pool_results + [{'array_ip': item.0.item, 'pool_id': item.1.id, 'pool_name': item.1.name, 'capacity_gb': (item.1.totalCapacity | int / 1024 / 1024), 'used_capacity_gb': (item.1.usedCapacity | int / 1024 / 1024), 'usage_percent': (item.1.usedCapacity | int * 100 / item.1.totalCapacity | int) | round(2), 'status': item.1.status}] }}"
+          with_subelements:
+            - "{{ pool_response.results }}"
+            - json.data
+          when: item.0 is succeeded and item.0.json is defined and item.0.json.data is defined
           loop_control:
-            loop_var: pool
-          when: pool_response is succeeded
+            label: "{{ item.0.item }} - {{ item.1.name | default('unknown') }}"
 
         - name: Sort pools by capacity (descending)
           set_fact:
