@@ -7,8 +7,8 @@
   hosts: localhost
   gather_facts: no
   vars:
-    hitachi_username: "{{ hitachi_user }}"
-    hitachi_password: "{{ hitachi_pass }}"
+    hitachi_username: "{{ vault_storage_username }}"
+    hitachi_password: "{{ vault_storage_secret }}"
     hitachi_storage_ips:
       - 192.168.180.12
       - 192.168.181.12
