@@ -18,14 +18,6 @@
 
   tasks:
 
-    - name: Set up Python environment for Hitachi API and Ansible requirements
-      pip:
-        name:
-          - requests
-          - urllib3
-          - jmespath  # Add jmespath for json_query filter
-        state: present
-      become: yes
 
     - name: Create temporary directory for results
       tempfile:
