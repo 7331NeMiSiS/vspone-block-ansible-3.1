@@ -57,7 +57,7 @@
           set_fact:
             temp_pool_results: "{{ temp_pool_results + [
               {
-                'array_ip': array_response.item,
+                'array_ip': pool_response.item,
                 'pool_id': pool.poolId,
                 'pool_name': pool.poolName,
                 'capacity_gb': ((pool.totalPoolCapacity | int) / 1024 / 1024),
@@ -70,10 +70,10 @@
                 'total_located_capacity_gb': ((pool.totalLocatedCapacity | default(0) | int) / 1024 / 1024)
               }
             ] }}"
-          loop: "{{ array_response.json.data }}"
+          loop: "{{ pool_response.json.data }}"
           loop_control:
             loop_var: pool
-            label: "{{ array_response.item }} - {{ pool.poolName | default('unknown') }}"
+            label: "{{ pool_response.item }} - {{ pool.poolName | default('unknown') }}"
 
         - name: Print Pool Information
           debug:
