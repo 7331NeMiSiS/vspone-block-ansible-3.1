@@ -59,14 +59,28 @@
           loop_control:
             label: "{{ item.0.item }} - {{ item.1.name | default('unknown') }}"
 
+        - name: Print Pool Information
+          debug:
+            var: temp_pool_results
+
+
         - name: Sort pools by capacity (descending)
           set_fact:
             sorted_pools: "{{ temp_pool_results | sort(attribute='capacity_gb', reverse=true) }}"
+
+
+        - name: Print Sorted Pool Information
+          debug:
+            var: sorted_pools
 
         - name: Group pools by array
           set_fact:
             pools_by_array: "{{ pools_by_array | default({}) | combine({item.array_ip: pools_by_array[item.array_ip] | default([]) + [item | reject('equalto', 'array_ip')]}) }}"
           loop: "{{ sorted_pools }}"
+
+        - name: Print Group Pool Information
+          debug:
+            var: pools_by_array
 
         - name: Generate final report with usage percentages
           copy:
