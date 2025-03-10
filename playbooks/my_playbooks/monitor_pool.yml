@@ -49,34 +49,75 @@
 
 
 
-        - name: Initialize temp_pool_results if not defined
+        - name: Reset temp_pool_results
           set_fact:
             temp_pool_results: [ ]
-          when: temp_pool_results is not defined
 
-        - name: Process pool information and calculate usage percentage
+        - name: Process Array 1
           set_fact:
             temp_pool_results: "{{ temp_pool_results + [
               {
-                'array_ip': item.0.item,
-                'pool_id': item.1.poolId,
-                'pool_name': item.1.poolName,
-                'capacity_gb': ((item.1.totalPoolCapacity | int) / 1024 / 1024),
-                'used_capacity_gb': ((item.1.totalPoolCapacity | int - item.1.availableVolumeCapacity | int) / 1024 / 1024),
-                'usage_percent': item.1.usedCapacityRate | int,
-                'status': item.1.poolStatus,
-                'warning_threshold': item.1.warningThreshold | int,
-                'depletion_threshold': item.1.depletionThreshold | int,
-                'pool_type': item.1.poolType,
-                'total_located_capacity_gb': ((item.1.totalLocatedCapacity | default(0) | int) / 1024 / 1024)
+                'array_ip': pool_response.results[0].item,
+                'pool_id': pool.poolId,
+                'pool_name': pool.poolName,
+                'capacity_gb': ((pool.totalPoolCapacity | int) / 1024 / 1024),
+                'used_capacity_gb': ((pool.totalPoolCapacity | int - pool.availableVolumeCapacity | int) / 1024 / 1024),
+                'usage_percent': pool.usedCapacityRate | int,
+                'status': pool.poolStatus,
+                'warning_threshold': pool.warningThreshold | int,
+                'depletion_threshold': pool.depletionThreshold | int,
+                'pool_type': pool.poolType,
+                'total_located_capacity_gb': ((pool.totalLocatedCapacity | default(0) | int) / 1024 / 1024)
               }
             ] }}"
-          with_nested:
-            - "{{ pool_response.results }}"
-            - "{{ item[0].json.data }}"
-          when: item[0].json is defined and item[0].json.data is defined
+          loop: "{{ pool_response.results[0].json.data }}"
           loop_control:
-            label: "{{ item[0].item }} - {{ item[1].poolName | default('unknown') }}"
+            loop_var: pool
+          when: pool_response.results[0].json is defined and pool_response.results[0].json.data is defined
+
+        - name: Process Array 2
+          set_fact:
+            temp_pool_results: "{{ temp_pool_results + [
+              {
+                'array_ip': pool_response.results[1].item,
+                'pool_id': pool.poolId,
+                'pool_name': pool.poolName,
+                'capacity_gb': ((pool.totalPoolCapacity | int) / 1024 / 1024),
+                'used_capacity_gb': ((pool.totalPoolCapacity | int - pool.availableVolumeCapacity | int) / 1024 / 1024),
+                'usage_percent': pool.usedCapacityRate | int,
+                'status': pool.poolStatus,
+                'warning_threshold': pool.warningThreshold | int,
+                'depletion_threshold': pool.depletionThreshold | int,
+                'pool_type': pool.poolType,
+                'total_located_capacity_gb': ((pool.totalLocatedCapacity | default(0) | int) / 1024 / 1024)
+              }
+            ] }}"
+          loop: "{{ pool_response.results[1].json.data }}"
+          loop_control:
+            loop_var: pool
+          when: pool_response.results[1].json is defined and pool_response.results[1].json.data is defined
+
+        - name: Process Array 3
+          set_fact:
+            temp_pool_results: "{{ temp_pool_results + [
+              {
+                'array_ip': pool_response.results[2].item,
+                'pool_id': pool.poolId,
+                'pool_name': pool.poolName,
+                'capacity_gb': ((pool.totalPoolCapacity | int) / 1024 / 1024),
+                'used_capacity_gb': ((pool.totalPoolCapacity | int - pool.availableVolumeCapacity | int) / 1024 / 1024),
+                'usage_percent': pool.usedCapacityRate | int,
+                'status': pool.poolStatus,
+                'warning_threshold': pool.warningThreshold | int,
+                'depletion_threshold': pool.depletionThreshold | int,
+                'pool_type': pool.poolType,
+                'total_located_capacity_gb': ((pool.totalLocatedCapacity | default(0) | int) / 1024 / 1024)
+              }
+            ] }}"
+          loop: "{{ pool_response.results[2].json.data }}"
+          loop_control:
+            loop_var: pool
+          when: pool_response.results[2].json is defined and pool_response.results[2].json.data is defined
 
         - name: Print Pool Information
           debug:
