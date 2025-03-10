@@ -17,8 +17,6 @@
     temp_pool_results: []
 
   tasks:
-
-
     - name: Create temporary directory for results
       tempfile:
         state: directory
@@ -46,8 +44,6 @@
         - name: Print summary of pool usage
           debug:
             var: pool_response
-
-
 
         - name: Reset temp_pool_results
           set_fact:
