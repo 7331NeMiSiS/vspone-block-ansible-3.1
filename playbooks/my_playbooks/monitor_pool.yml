@@ -66,6 +66,28 @@
           debug:
             var: temp_pool_results
 
+        - name: Create list of pools with their details
+          ansible.builtin.set_fact:
+            pool_list: "{{ pool_list | default([]) + [{'array_ip': item.0.array_ip, 'pool_id': item.1.poolId, 'pool_name': item.1.poolName, 'utilized_capacity': item.1.usedCapacityRate}] }}"
+          loop: "{{ temp_pool_results | subelements('data') }}"
+
+        - name: Display pool information
+          ansible.builtin.debug:
+            msg: "Pool ID: {{ item.pool_id }}, Pool Name: {{ item.pool_name }}, Array IP: {{ item.array_ip }}, Utilized Capacity: {{ item.utilized_capacity }}%"
+          loop: "{{ pool_list }}"
+
+        - name: Create formatted table of pool information
+          ansible.builtin.debug:
+            msg: |
+              Storage Pool Information:
+              +----------+-------------------+----------------+-------------------+
+              | Pool ID  | Pool Name         | Array IP       | Utilized Capacity |
+              +----------+-------------------+----------------+-------------------+
+              {% for pool in pool_list %}
+              | {{ "%-8s" | format(pool.pool_id) }} | {{ "%-17s" | format(pool.pool_name) }} | {{ "%-14s" | format(pool.array_ip) }} | {{ "%15s" | format(pool.utilized_capacity ~ '%') }} |
+              {% endfor %}
+              +----------+-------------------+----------------+-------------------+
+
 #
 #
 #
