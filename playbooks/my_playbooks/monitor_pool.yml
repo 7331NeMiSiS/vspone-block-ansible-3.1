@@ -89,19 +89,20 @@
             msg: "Pool ID: {{ item.pool_id }}, Pool Name: {{ item.pool_name }}, Array IP: {{ item.array_ip }}, Utilized Capacity: {{ item.utilized_capacity }}%"
           loop: "{{ sorted_pools }}"
 
-#        - name: Print Sorted Pool Information
-#          debug:
-#            var: sorted_pools
-#
-#        - name: Group pools by array
-#          set_fact:
-#            pools_by_array: "{{ pools_by_array | default({}) | combine({item.array_ip: (pools_by_array[item.array_ip] | default([]) + [item | dict2items | rejectattr('key', 'equalto', 'array_ip') | items2dict])}) }}"
-#          loop: "{{ temp_pool_results | default([]) }}"
-#          when: temp_pool_results is defined and flat_pool_results | length > 0
-#
-#        - name: Print Group Pool Information
-#          debug:
-#            var: pools_by_array
+        - name: Print Pool Information
+          debug:
+            var: sorted_pools
+
+
+        - name: Group pools by array
+          set_fact:
+            pools_by_array: "{{ pools_by_array | default({}) | combine({item.array_ip: (pools_by_array[item.array_ip] | default([]) + [item | dict2items | rejectattr('key', 'equalto', 'array_ip') | items2dict])}) }}"
+          loop: "{{ sorted_pools | default([]) }}"
+          when: sorted_pools is defined and flat_pool_results | length > 0
+
+        - name: Print Group Pool Information
+          debug:
+            var: pools_by_array
 #
 #        - name: Generate final report with usage percentages
 #          copy:
