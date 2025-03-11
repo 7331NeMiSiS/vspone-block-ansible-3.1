@@ -76,26 +76,19 @@
             msg: "Pool ID: {{ item.pool_id }}, Pool Name: {{ item.pool_name }}, Array IP: {{ item.array_ip }}, Utilized Capacity: {{ item.utilized_capacity }}%"
           loop: "{{ pool_list }}"
 
-        - name: Create formatted table of pool information
-          ansible.builtin.debug:
-            msg: |
-              Storage Pool Information:
-              +----------+-------------------+----------------+-------------------+
-              | Pool ID  | Pool Name         | Array IP       | Utilized Capacity |
-              +----------+-------------------+----------------+-------------------+
-              {% for pool in pool_list %}
-              | {{ "%-8s" | format(pool.pool_id) }} | {{ "%-17s" | format(pool.pool_name) }} | {{ "%-14s" | format(pool.array_ip) }} | {{ "%15s" | format(pool.utilized_capacity ~ '%') }} |
-              {% endfor %}
-              +----------+-------------------+----------------+-------------------+
 
-#
-#
-#
-#        - name: Sort pools by capacity (descending)
-#          set_fact:
-#            sorted_pools: "{{ temp_pool_results | sort(attribute='capacity_gb', reverse=true) }}"
-#
-#
+
+
+
+        - name: Sort pools by capacity (descending)
+          set_fact:
+            sorted_pools: "{{ pool_list | sort(attribute='utilized_capacity', reverse=true) }}"
+
+        - name: Display Sorted pool information
+          ansible.builtin.debug:
+            msg: "Pool ID: {{ item.pool_id }}, Pool Name: {{ item.pool_name }}, Array IP: {{ item.array_ip }}, Utilized Capacity: {{ item.utilized_capacity }}%"
+          loop: "{{ sorted_pools }}"
+
 #        - name: Print Sorted Pool Information
 #          debug:
 #            var: sorted_pools
