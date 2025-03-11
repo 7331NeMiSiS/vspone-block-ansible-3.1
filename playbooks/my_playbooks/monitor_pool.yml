@@ -53,83 +53,76 @@
           set_fact:
             temp_pool_results: "{{ temp_pool_results + [
               {
-                'array_ip': pool_response.item,
-                'pool_id': pool.poolId,
-                'pool_name': pool.poolName,
-                'capacity_gb': ((pool.totalPoolCapacity | int) / 1024 / 1024),
-                'used_capacity_gb': ((pool.totalPoolCapacity | int - pool.availableVolumeCapacity | int) / 1024 / 1024),
-                'usage_percent': pool.usedCapacityRate | int,
-                'status': pool.poolStatus,
-                'warning_threshold': pool.warningThreshold | int,
-                'depletion_threshold': pool.depletionThreshold | int,
-                'pool_type': pool.poolType,
-                'total_located_capacity_gb': ((pool.totalLocatedCapacity | default(0) | int) / 1024 / 1024)
+                'array_ip': pool.item,
+                'data': pool.json.data
               }
             ] }}"
-          loop: "{{ pool_response.json.data }}"
+          loop: "{{ pool_response.results }}"
           loop_control:
             loop_var: pool
-            label: "{{ pool_response.item }} - {{ pool.poolName | default('unknown') }}"
+            label: "{{ pool.item }} using {{pool.invocation.module_args.user}} on url {{ pool.url | default('unknown') }}"
 
         - name: Print Pool Information
           debug:
             var: temp_pool_results
 
-
-        - name: Sort pools by capacity (descending)
-          set_fact:
-            sorted_pools: "{{ temp_pool_results | sort(attribute='capacity_gb', reverse=true) }}"
-
-
-        - name: Print Sorted Pool Information
-          debug:
-            var: sorted_pools
-
-        - name: Group pools by array
-          set_fact:
-            pools_by_array: "{{ pools_by_array | default({}) | combine({item.array_ip: (pools_by_array[item.array_ip] | default([]) + [item | dict2items | rejectattr('key', 'equalto', 'array_ip') | items2dict])}) }}"
-          loop: "{{ temp_pool_results | default([]) }}"
-          when: temp_pool_results is defined and flat_pool_results | length > 0
-
-        - name: Print Group Pool Information
-          debug:
-            var: pools_by_array
-
-        - name: Generate final report with usage percentages
-          copy:
-            content: "{{ pools_by_array | to_nice_json }}"
-            dest: "{{ results_path }}"
-          delegate_to: localhost
-
-        - name: Print summary of pool usage
-          debug:
-            msg: |
-              Hitachi Storage Array Pool Usage Summary:
-              {% for array_ip, pools in pools_by_array.items() %}
-              Storage Array: {{ array_ip }}
-              {% for pool in pools %}
-              - Pool: {{ pool.pool_name }} (ID: {{ pool.pool_id }})
-                Capacity: {{ pool.capacity_gb | round(2) }} GB
-                Used: {{ pool.used_capacity_gb | round(2) }} GB
-                Usage: {{ pool.usage_percent }}%
-                Status: {{ pool.status }}
-              {% endfor %}
-              {% endfor %}
-
-      rescue:
-        - name: Report error when processing storage arrays
-          debug:
-            msg: "Failed to collect information from one or more storage arrays. Please check credentials and connectivity."
-
-      always:
-        - name: Clean up temporary directory
-          file:
-            path: "{{ temp_dir.path }}"
-            state: absent
-          when: temp_dir.path is defined
-
-    - name: Alert on high pool usage
-      debug:
-        msg: "WARNING: Pool {{ item.pool_name }} on array {{ item.array_ip }} has {{ item.usage_percent }}% usage, which exceeds threshold!"
-      loop: "{{ sorted_pools }}"
-      when: item.usage_percent | float > 85
+#
+#
+#
+#        - name: Sort pools by capacity (descending)
+#          set_fact:
+#            sorted_pools: "{{ temp_pool_results | sort(attribute='capacity_gb', reverse=true) }}"
+#
+#
+#        - name: Print Sorted Pool Information
+#          debug:
+#            var: sorted_pools
+#
+#        - name: Group pools by array
+#          set_fact:
+#            pools_by_array: "{{ pools_by_array | default({}) | combine({item.array_ip: (pools_by_array[item.array_ip] | default([]) + [item | dict2items | rejectattr('key', 'equalto', 'array_ip') | items2dict])}) }}"
+#          loop: "{{ temp_pool_results | default([]) }}"
+#          when: temp_pool_results is defined and flat_pool_results | length > 0
+#
+#        - name: Print Group Pool Information
+#          debug:
+#            var: pools_by_array
+#
+#        - name: Generate final report with usage percentages
+#          copy:
+#            content: "{{ pools_by_array | to_nice_json }}"
+#            dest: "{{ results_path }}"
+#          delegate_to: localhost
+#
+#        - name: Print summary of pool usage
+#          debug:
+#            msg: |
+#              Hitachi Storage Array Pool Usage Summary:
+#              {% for array_ip, pools in pools_by_array.items() %}
+#              Storage Array: {{ array_ip }}
+#              {% for pool in pools %}
+#              - Pool: {{ pool.pool_name }} (ID: {{ pool.pool_id }})
+#                Capacity: {{ pool.capacity_gb | round(2) }} GB
+#                Used: {{ pool.used_capacity_gb | round(2) }} GB
+#                Usage: {{ pool.usage_percent }}%
+#                Status: {{ pool.status }}
+#              {% endfor %}
+#              {% endfor %}
+#
+#      rescue:
+#        - name: Report error when processing storage arrays
+#          debug:
+#            msg: "Failed to collect information from one or more storage arrays. Please check credentials and connectivity."
+#
+#      always:
+#        - name: Clean up temporary directory
+#          file:
+#            path: "{{ temp_dir.path }}"
+#            state: absent
+#          when: temp_dir.path is defined
+#
+#    - name: Alert on high pool usage
+#      debug:
+#        msg: "WARNING: Pool {{ item.pool_name }} on array {{ item.array_ip }} has {{ item.usage_percent }}% usage, which exceeds threshold!"
+#      loop: "{{ sorted_pools }}"
+#      when: item.usage_percent | float > 85
