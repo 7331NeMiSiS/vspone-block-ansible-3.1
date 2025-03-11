@@ -82,7 +82,7 @@
 
         - name: Sort pools by capacity (descending)
           set_fact:
-            sorted_pools: "{{ pool_list | sort(attribute='utilized_capacity') }}"
+            sorted_pools: "{{ pool_list | sort(attribute='available_capacity') }}"
 
         - name: Display Sorted pool information
           ansible.builtin.debug:
