@@ -68,7 +68,7 @@
 
         - name: Create list of pools with their details
           ansible.builtin.set_fact:
-            pool_list: "{{ pool_list | default([]) + [{'array_ip': item.0.array_ip, 'pool_id': item.1.poolId, 'pool_name': item.1.poolName, 'utilized_capacity': item.1.usedCapacityRate}] }}"
+            pool_list: "{{ pool_list | default([]) + [{'array_ip': item.0.array_ip, 'pool_id': item.1.poolId, 'pool_name': item.1.poolName, 'utilized_capacity': item.1.usedCapacityRate, 'available_capacity': item.1.availableVolumeCapacity, 'total_capacity': item.1.totalPoolCapacity}] }}"
           loop: "{{ temp_pool_results | subelements('data') }}"
 
         - name: Display pool information
