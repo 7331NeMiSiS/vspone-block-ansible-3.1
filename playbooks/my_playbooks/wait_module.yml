@@ -1,0 +1,23 @@
+---
+# Playbook: monitor_hitachi_storage.yml
+# Description: Collects storage pool usage information from Hitachi storage arrays
+#              and stores results sorted by pool capacity.
+
+- name: Monitor Hitachi Storage Arrays
+  hosts: localhost
+  gather_facts: no
+  vars:
+    hitachi_username: "{{ vault_storage_username }}"
+    hitachi_password: "{{ vault_storage_secret }}"
+    hitachi_storage_ips:
+      - 192.168.180.12
+      - 192.168.181.12
+      - 192.168.180.163
+    results_path: "./hitachi_pool_usage.json"
+    temp_pool_results: []
+
+  tasks:
+    - name: Sleep for 300 seconds and continue with play
+      ansible.builtin.wait_for:
+        timeout: 300
+      delegate_to: localhost
