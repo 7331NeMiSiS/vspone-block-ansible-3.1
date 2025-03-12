@@ -18,5 +18,5 @@
   tasks:
     - name: Sleep for 300 seconds and continue with play
       ansible.builtin.wait_for:
-        timeout: 300
+        timeout: 5
       delegate_to: localhost
