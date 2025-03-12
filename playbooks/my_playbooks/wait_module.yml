@@ -3,7 +3,7 @@
 # Description: Collects storage pool usage information from Hitachi storage arrays
 #              and stores results sorted by pool capacity.
 
-- name: Monitor Hitachi Storage Arrays
+- name: Consider Performance
   hosts: localhost
   gather_facts: no
   vars:
@@ -13,8 +13,7 @@
       - 192.168.180.12
       - 192.168.181.12
       - 192.168.180.163
-    results_path: "./hitachi_pool_usage.json"
-    temp_pool_results: []
+
 
   tasks:
     - name: Sleep for 300 seconds and continue with play
