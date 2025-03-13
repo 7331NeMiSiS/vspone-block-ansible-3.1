@@ -44,7 +44,7 @@
 
         - name: Create session and get token
           uri:
-            url: "{{ item }}/ConfigurationManager/v1/objects/sessions"
+            url: "https://{{ item }}/ConfigurationManager/v1/objects/sessions"
             method: POST
             user: "{{ vault_storage_username }}"
             password: "{{ vault_storage_secret }}"
