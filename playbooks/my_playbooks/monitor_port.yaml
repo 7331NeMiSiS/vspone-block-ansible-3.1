@@ -74,6 +74,7 @@
               Accept-Language: "en"
               Connection: "keep-alive"
               Content-Type: "application/json"
+              Authorization: "Session {{item.json.token}}"
               X-Auth-Token: "{{ item.json.token }}"
           register: performance_data
           loop: "{{ session_response.results }}"
@@ -92,6 +93,7 @@
             headers:
               Accept: "application/json, text/plain, */*"
               Content-Type: "application/json"
+              Authorization: "Session {{item.json.token}}"
               X-Auth-Token: "{{ item.json.token }}"
           loop: "{{ session_response.results }}"
           ignore_errors: yes
