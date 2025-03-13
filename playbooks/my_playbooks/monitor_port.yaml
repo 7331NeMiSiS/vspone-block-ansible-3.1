@@ -37,6 +37,10 @@
           ignore_errors: yes
     #     no_log: yes
 
+        - name: Print summary of port Capabilities
+          debug:
+            var: port_capabilities
+
         - name: Gather real-time port performance metrics
           uri:
             url: "https://{{ inventory_hostname }}/api/v1/ports/statistics"
