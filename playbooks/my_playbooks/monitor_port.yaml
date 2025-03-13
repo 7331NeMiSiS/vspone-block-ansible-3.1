@@ -1,0 +1,101 @@
+---
+- name: Gather Hitachi Array Port Performance Metrics
+  hosts: hitachi_arrays
+  gather_facts: no
+  vars:
+    hitachi_username: "{{ vault_storage_username }}"
+    hitachi_password: "{{ vault_storage_secret }}"
+    hitachi_storage_ips:
+      - 192.168.180.12
+      - 192.168.181.12
+      - 192.168.180.163     
+    output_dir: "{{ playbook_dir }}/output"
+    report_file: "{{ output_dir }}/hitachi_port_performance_report.json"
+    
+  tasks:
+    - name: Create output directory
+      file:
+        path: "{{ output_dir }}"
+        state: directory
+      delegate_to: localhost
+      
+    - name: Gather Hitachi array port capabilities
+      uri:
+        url: "https://{{ item }}/ConfigurationManager/v1/objects/ports"
+        method: GET
+        user: "{{ vault_storage_username }}"
+        password: "{{ vault_storage_secret }}"
+        force_basic_auth: yes
+        validate_certs: no
+        headers:
+          Accept: "application/json"
+          Content-Type: "application/json"      
+      register: port_capabilities
+      with_items: "{{ hitachi_storage_ips }}"    
+      ignore_errors: yes
+#     no_log: yes
+      
+    - name: Gather real-time port performance metrics
+      uri:
+        url: "https://{{ inventory_hostname }}/api/v1/ports/statistics"
+        method: GET
+        user: "{{ hitachi_username }}"
+        password: "{{ hitachi_password }}"
+        force_basic_auth: yes
+        validate_certs: no
+        headers:
+          Accept: "application/json"
+      register: port_performance
+      delegate_to: localhost
+      
+    - name: Calculate port usage percentages
+      set_fact:
+        port_usage: "{{ port_usage | default({}) | combine({ item.port_id: calculated_usage }) }}"
+      vars:
+        port_cap: "{{ (port_capabilities.json.data | selectattr('port_id', 'equalto', item.port_id) | list)[0] }}"
+        max_throughput: "{{ port_cap.max_throughput | int }}"
+        current_throughput: "{{ item.throughput | int }}"
+        calculated_usage: "{{ ((current_throughput / max_throughput) * 100) | round(2) }}"
+      loop: "{{ port_performance.json.data }}"
+      
+    - name: Generate detailed port performance report
+      set_fact:
+        port_report: "{{ port_report | default([]) + [port_details] }}"
+      vars:
+        port_cap: "{{ (port_capabilities.json.data | selectattr('port_id', 'equalto', item.port_id) | list)[0] }}"
+        port_details: {
+          "port_id": "{{ item.port_id }}",
+          "port_type": "{{ port_cap.port_type }}",
+          "max_throughput_mbps": "{{ port_cap.max_throughput | int }}",
+          "current_throughput_mbps": "{{ item.throughput | int }}",
+          "usage_percentage": "{{ port_usage[item.port_id] }}",
+          "iops": "{{ item.iops | default(0) | int }}",
+          "latency_ms": "{{ item.latency | default(0) | float }}",
+          "status": "{{ port_cap.status }}"
+        }
+      loop: "{{ port_performance.json.data }}"
+      
+    - name: Save port performance report to file
+      copy:
+        content: "{{ port_report | to_nice_json }}"
+        dest: "{{ report_file }}"
+      delegate_to: localhost
+      
+    - name: Display port usage summary
+      debug:
+        msg: 
+          - "Port {{ item.port_id }} ({{ item.port_type }}): {{ item.usage_percentage }}% utilized"
+          - "Max throughput: {{ item.max_throughput_mbps }} Mbps, Current: {{ item.current_throughput_mbps }} Mbps"
+      loop: "{{ port_report }}"
+      
+    - name: Identify high utilization ports (>80%)
+      debug:
+        msg: "WARNING: Port {{ item.port_id }} has high utilization ({{ item.usage_percentage }}%)"
+      loop: "{{ port_report }}"
+      when: item.usage_percentage | float > 80
+      
+    - name: Identify low utilization ports (<20%)
+      debug:
+        msg: "NOTE: Port {{ item.port_id }} has low utilization ({{ item.usage_percentage }}%)"
+      loop: "{{ port_report }}"
+      when: item.usage_percentage | float < 20
