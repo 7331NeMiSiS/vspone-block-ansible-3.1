@@ -41,6 +41,65 @@
           debug:
             var: port_capabilities
 
+
+        - name: Create session and get token
+          uri:
+            url: "{{ item }}/ConfigurationManager/v1/objects/sessions"
+            method: POST
+            user: "{{ vault_storage_username }}"
+            password: "{{ vault_storage_secret }}"
+            force_basic_auth: yes
+            validate_certs: no
+            headers:
+              Accept: "application/json, text/plain, */*"
+              Connection: "keep-alive"
+              Content-Type: "application/json"
+            body_format: json
+            body:
+              authenticationTimeout: 600
+            ignore_errors: yes
+            register: session_response
+            with_items: "{{ hitachi_storage_ips }}"
+
+        - name: Display session token information
+          debug:
+            var: session_response
+
+        - name: Get performance data for port-ios
+          uri:
+            url: "{{ hitachi_storage_ips }}/ConfigurationManager/simple/v1/objects/performances/port-ios"
+            method: GET
+            headers:
+              Accept: "application/json, text/plain, */*"
+              Accept-Language: "en"
+              Connection: "keep-alive"
+              Content-Type: "application/json"
+              X-Auth-Token: "{{ session_response.json.token }}"
+            validate_certs: no
+          register: performance_data
+          with_items: "{{ hitachi_storage_ips }}"
+          ignore_errors: yes
+
+        - name: Display performance data
+          debug:
+            var: performance_data
+
+        - name: Close session
+          uri:
+            url: "{{ api_base_url }}/ConfigurationManager/v1/objects/sessions/{{ session_response.json.sessionId }}"
+            method: DELETE
+            headers:
+              Accept: "application/json, text/plain, */*"
+              Accept-Language: "en"
+              Authorization: "{{ auth_header }}"
+              Content-Type: "application/json"
+              Referer: "{{ api_base_url }}/ui/"
+              User-Agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36"
+              X-Auth-Token: "{{ session_response.json.token }}"
+            validate_certs: no
+          register: session_close_response
+          ignore_errors: yes
+
         - name: Gather real-time port performance metrics
           uri:
             url: "https://{{ inventory_hostname }}/api/v1/ports/statistics"
