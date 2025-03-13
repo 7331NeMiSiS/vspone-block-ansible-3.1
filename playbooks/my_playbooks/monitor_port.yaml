@@ -1,6 +1,6 @@
 ---
 - name: Gather Hitachi Array Port Performance Metrics
-  hosts: hitachi_arrays
+  hosts: localhost
   gather_facts: no
   vars:
     hitachi_username: "{{ vault_storage_username }}"
