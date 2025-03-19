@@ -31,7 +31,20 @@
         state: "present"
         spec:
           pool_id: 1
-          ldev_id: "{{ldev_id}}"
+          ldev_id: 300
+          size: "{{ ldev_size }}GB"
+          name: "William"
+      register: ldev_create
+
+    - name: Create ldev with capacity saving and data_reduction_share
+      hv_ldev:
+        connection_info: "{{ connection_info }}"
+        storage_system_info:
+          serial: "{{ storage_serial }}"
+        state: "present"
+        spec:
+          pool_id: 1
+          ldev_id: 301
           size: "{{ ldev_size }}GB"
           name: "William"
       register: ldev_create
