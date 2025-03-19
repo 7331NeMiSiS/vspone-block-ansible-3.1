@@ -49,6 +49,7 @@
           capacity_saving: "compression_deduplication"
           data_reduction_share: "true"
           name: "William"
+        register: ldev_create
 
     - debug:
         var: ldev_create
