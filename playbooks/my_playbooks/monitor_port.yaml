@@ -99,45 +99,63 @@
           ignore_errors: yes
           when: item.json is defined and item.json.sessionId is defined and item.json.token is defined
 
+#        - name: Process storage ports statistics
+#          set_fact:
+#            processed_data: >-
+#              {% set result = [] %}
+#              {% for item in performance_data.results %}
+#                {% set ip = item.url | regex_search('https://([^/]+)', '\1') %}
+#                {% set port_count = 0 %}
+#                {% set total_io_count = 0 %}
+#                {% set total_input_io = 0 %}
+#                {% set total_output_io = 0 %}
+#                {% set total_transfer = 0 %}
+#                {% set ports = [] %}
+#
+#                {% for port in item.json.data %}
+#                  {% for io_info in port.ioInformation %}
+#                    {% if io_info.type == "Target" %}
+#                      {% set port_count = port_count + 1 %}
+#                      {% set total_io_count = total_io_count + io_info.totalIoCount %}
+#                      {% set total_input_io = total_input_io + io_info.inputIoCount %}
+#                      {% set total_output_io = total_output_io + io_info.outputIoCount %}
+#                      {% set total_transfer = total_transfer + io_info.totalTransferAmount %}
+#                      {% set ports = ports + [port.portId] %}
+#                    {% endif %}
+#                  {% endfor %}
+#                {% endfor %}
+#
+#                {% set device_info = {
+#                  'ip': ip,
+#                  'port_count': port_count,
+#                  'total_io_count': total_io_count,
+#                  'total_input_io': total_input_io,
+#                  'total_output_io': total_output_io,
+#                  'total_transfer': total_transfer,
+#                  'ports': ports | join(', ')
+#                } %}
+#
+#                {% set result = result + [device_info] %}
+#              {% endfor %}
+#              {{ result }}
+
+        # Fixed approach - Use a simpler method to process the data
         - name: Process storage ports statistics
           set_fact:
-            processed_data: >-
-              {% set result = [] %}
-              {% for item in performance_data.results %}
-                {% set ip = item.url | regex_search('https://([^/]+)', '\1') %}
-                {% set port_count = 0 %}
-                {% set total_io_count = 0 %}
-                {% set total_input_io = 0 %}
-                {% set total_output_io = 0 %}
-                {% set total_transfer = 0 %}
-                {% set ports = [] %}
-
-                {% for port in item.json.data %}
-                  {% for io_info in port.ioInformation %}
-                    {% if io_info.type == "Target" %}
-                      {% set port_count = port_count + 1 %}
-                      {% set total_io_count = total_io_count + io_info.totalIoCount %}
-                      {% set total_input_io = total_input_io + io_info.inputIoCount %}
-                      {% set total_output_io = total_output_io + io_info.outputIoCount %}
-                      {% set total_transfer = total_transfer + io_info.totalTransferAmount %}
-                      {% set ports = ports + [port.portId] %}
-                    {% endif %}
-                  {% endfor %}
-                {% endfor %}
-
-                {% set device_info = {
-                  'ip': ip,
-                  'port_count': port_count,
-                  'total_io_count': total_io_count,
-                  'total_input_io': total_input_io,
-                  'total_output_io': total_output_io,
-                  'total_transfer': total_transfer,
-                  'ports': ports | join(', ')
-                } %}
-
-                {% set result = result + [device_info] %}
-              {% endfor %}
-              {{ result }}
+            processed_data: "{{ processed_data | default([]) + [{ 
+                  'ip': item.url | regex_replace('https://([^/]+)/.*', '\\1'),
+                  'port_count': item.json.data | selectattr('ioInformation', 'defined') | map(attribute='ioInformation') | flatten | selectattr('type', 'equalto', 'Target') | list | length,
+                  'total_io_count': item.json.data | selectattr('ioInformation', 'defined') | map(attribute='ioInformation') | flatten | selectattr('type', 'equalto', 'Target') | map(attribute='totalIoCount') | sum,
+                  'total_input_io': item.json.data | selectattr('ioInformation', 'defined') | map(attribute='ioInformation') | flatten | selectattr('type', 'equalto', 'Target') | map(attribute='inputIoCount') | sum,
+                  'total_output_io': item.json.data | selectattr('ioInformation', 'defined') | map(attribute='ioInformation') | flatten | selectattr('type', 'equalto', 'Target') | map(attribute='outputIoCount') | sum,
+                  'total_transfer': item.json.data | selectattr('ioInformation', 'defined') | map(attribute='ioInformation') | flatten | selectattr('type', 'equalto', 'Target') | map(attribute='totalTransferAmount') | sum,
+                  'ports': item.json.data | map(attribute='portId') | join(', ')
+                }] }}"
+          loop: "{{ performance_data.results }}"
+          when:
+            - item.json is defined
+            - item.json.data is defined
+            - item.status == 200
 
         - name: Display statistics summary
           debug:
