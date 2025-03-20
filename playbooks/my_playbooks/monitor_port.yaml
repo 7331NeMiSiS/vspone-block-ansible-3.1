@@ -155,7 +155,7 @@
           when:
             - item.json is defined
             - item.json.data is defined
-            - item.status == 200\
+            - item.status == 200
 
         - name: Print processed data
           debug:
