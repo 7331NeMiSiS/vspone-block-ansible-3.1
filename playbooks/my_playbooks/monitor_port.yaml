@@ -139,35 +139,35 @@
               {% endfor %}
               {{ result }}
 
-            - name: Display statistics summary
-              debug:
-                msg:
-                  - "Storage Port Statistics Summary:"
-                  - "=================================================="
-                  - "{% for device in processed_data %}"
-                  - "Storage Device: {{ device.ip }}"
-                  - "  Number of Target Ports: {{ device.port_count }}"
-                  - "  Total IO Operations: {{ device.total_io_count | int }}"
-                  - "  Total Input IO: {{ device.total_input_io | int }}"
-                  - "  Total Output IO: {{ device.total_output_io | int }}"
-                  - "  Total Transfer Amount: {{ device.total_transfer | int }}"
-                  - "  Ports: {{ device.ports }}"
-                  - "=================================================="
-                  - "{% endfor %}"
+        - name: Display statistics summary
+          debug:
+            msg:
+              - "Storage Port Statistics Summary:"
+              - "=================================================="
+              - "{% for device in processed_data %}"
+              - "Storage Device: {{ device.ip }}"
+              - "  Number of Target Ports: {{ device.port_count }}"
+              - "  Total IO Operations: {{ device.total_io_count | int }}"
+              - "  Total Input IO: {{ device.total_input_io | int }}"
+              - "  Total Output IO: {{ device.total_output_io | int }}"
+              - "  Total Transfer Amount: {{ device.total_transfer | int }}"
+              - "  Ports: {{ device.ports }}"
+              - "=================================================="
+              - "{% endfor %}"
 
-            - name: Create summary report file
-              copy:
-                content: |
-                  # Storage Port Statistics Summary
-                  {% for device in processed_data %}
-                  ## Device: {{ device.ip }}
-                  - Number of Target Ports: {{ device.port_count }}
-                  - Total IO Operations: {{ device.total_io_count | int }}
-                  - Total Input IO: {{ device.total_input_io | int }} 
-                  - Total Output IO: {{ device.total_output_io | int }}
-                  - Total Transfer Amount: {{ device.total_transfer | int }}
-                  - Ports: {{ device.ports }}
-                  
-                  {% endfor %}
-                dest: "./storage_port_statistics_summary.md"
-              delegate_to: localhost
+        - name: Create summary report file
+          copy:
+            content: |
+              # Storage Port Statistics Summary
+              {% for device in processed_data %}
+              ## Device: {{ device.ip }}
+              - Number of Target Ports: {{ device.port_count }}
+              - Total IO Operations: {{ device.total_io_count | int }}
+              - Total Input IO: {{ device.total_input_io | int }} 
+              - Total Output IO: {{ device.total_output_io | int }}
+              - Total Transfer Amount: {{ device.total_transfer | int }}
+              - Ports: {{ device.ports }}
+              
+              {% endfor %}
+            dest: "./storage_port_statistics_summary.md"
+            delegate_to: localhost
