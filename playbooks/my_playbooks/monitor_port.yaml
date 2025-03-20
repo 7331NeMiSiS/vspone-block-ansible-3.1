@@ -155,7 +155,11 @@
           when:
             - item.json is defined
             - item.json.data is defined
-            - item.status == 200
+            - item.status == 200\
+
+        - name: Print processed data
+          debug:
+            var: processed_data
 
         - name: Display statistics summary
           debug:
@@ -185,7 +189,7 @@
               - Total Output IO: {{ device.total_output_io | int }}
               - Total Transfer Amount: {{ device.total_transfer | int }}
               - Ports: {{ device.ports }}
-              
+
               {% endfor %}
             dest: "./storage_port_statistics_summary.md"
-            delegate_to: localhost
+          delegate_to: localhost
