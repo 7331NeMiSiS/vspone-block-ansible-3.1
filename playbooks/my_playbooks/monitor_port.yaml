@@ -101,7 +101,7 @@
 
         - name: Process storage ports statistics
           set_fact:
-            processed_data:
+            processed_data: >-
               {% set result = [] %}
               {% for item in performance_data.results %}
                 {% set ip = item.url | regex_search('https://([^/]+)', '\1') %}
