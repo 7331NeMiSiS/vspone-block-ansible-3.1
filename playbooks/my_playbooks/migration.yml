@@ -49,7 +49,7 @@
           secondary_resource_group_name: "rainier_VSM_RH20MH2_810396"
           quorum_disk_id: 0
           set_alua_mode: true
-          allocate_new_consistency_group: false
+          allocate_new_consistency_group: true
       register: result
 
     - name: Debug the result variable
