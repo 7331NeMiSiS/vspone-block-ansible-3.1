@@ -45,6 +45,7 @@
               enable_preferred_path: false
           primary_resource_group_name: "meta_resource"
           primary_storage_serial_number: "{{primary_storage_serial}}"
+          secondary_storage_serial_number: "{{secondary_storage_serial}}"
           secondary_resource_group_name: "rainier_VSM_RH20MH2_810396"
           quorum_disk_id: 0
           set_alua_mode: true
