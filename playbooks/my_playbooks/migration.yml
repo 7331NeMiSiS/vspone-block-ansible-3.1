@@ -65,7 +65,7 @@
       hitachivantara.vspone_block.vsp.hv_gad_facts:
         connection_info: "{{ connection_info }}"
         secondary_connection_info: "{{ secondary_connection_info }}"
-      register:
+      register: gad_facts
 #      until: gad_facts.stdout.find("PAIR") != -1
 #      retries: 60
 #      delay: 10
