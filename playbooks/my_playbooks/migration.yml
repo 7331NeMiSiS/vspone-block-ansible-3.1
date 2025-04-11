@@ -51,6 +51,11 @@
           set_alua_mode: true
           allocate_new_consistency_group: false
       register: result
+      ignore_errors: True
+
+    - name: Collect log bundle for direct only
+      hitachivantara.vspone_block.vsp.hv_troubleshooting_facts:
+      # no_log: true
 
     - name: Debug the result variable
       ansible.builtin.debug:
@@ -60,7 +65,10 @@
       hitachivantara.vspone_block.vsp.hv_gad_facts:
         connection_info: "{{ connection_info }}"
         secondary_connection_info: "{{ secondary_connection_info }}"
-      register: gad_facts
+      register:
+#      until: gad_facts.stdout.find("PAIR") != -1
+#      retries: 60
+#      delay: 10
 
     - name: Debug gad results
       ansible.builtin.debug:
