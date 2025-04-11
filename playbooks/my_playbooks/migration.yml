@@ -36,20 +36,20 @@
           primary_volume_id: "{{ldev_id}}"
           secondary_pool_id: 1
           secondary_hostgroups:
-            - name: "DC1-ESXi-222"
-              port: "CL3-A"
+            - name: "WilliamGAD"
+              port: "CL1-A"
               enable_preferred_path: true
           primary_hostgroups:
-            - name: "DC1-ESXi-222"
+            - name: "WilliamGAD"
               port: "CL1-A"
               enable_preferred_path: false
-          primary_resource_group_name: "meta_resource"
+          primary_resource_group_name: "VSM_487953"
           primary_storage_serial_number: "{{primary_storage_serial}}"
           secondary_storage_serial_number: "{{secondary_storage_serial}}"
-          secondary_resource_group_name: "rainier_VSM_RH20MH2_810396"
+          secondary_resource_group_name: "VSM_487953"
           quorum_disk_id: 0
           set_alua_mode: true
-          allocate_new_consistency_group: true
+          allocate_new_consistency_group: false
       register: result
 
     - name: Debug the result variable
