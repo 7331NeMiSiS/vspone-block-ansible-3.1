@@ -17,3 +17,8 @@ collection_build.sh
 scripts/
 plugins/module_utils/unit_test
 run_in_python.py
+.idea/vspone-block-ansible-3.1.iml
+.idea/vcs.xml
+.idea/modules.xml
+.idea/misc.xml
+.idea/inspectionProfiles/profiles_settings.xml
