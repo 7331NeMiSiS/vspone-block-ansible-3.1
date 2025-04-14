@@ -42,7 +42,7 @@
           primary_hostgroups:
             - name: "WilliamGAD"
               port: "CL1-A"
-              enable_preferred_path: false
+              enable_preferred_path: true
           primary_resource_group_name: "VSM_487953"
           primary_storage_serial_number: "{{primary_storage_serial}}"
           secondary_storage_serial_number: "{{secondary_storage_serial}}"
@@ -69,6 +69,19 @@
 #      until: gad_facts.stdout.find("PAIR") != -1
 #      retries: 60
 #      delay: 10
+
+    - name: Set paths on old array as non-preferred.
+      hitachivantara.vspone_block.vsp.hv_hg:
+        state: present
+        connection_info: "{{ connection_info }}"
+        spec:
+          state: set_host_mode_and_hmo
+          name: 'WilliamGAD'
+          port: '{{item}}'
+          host_mode_options: [ 78 ]
+      loop:
+        - "CL1-A"
+        - "CL2-A"
 
     - name: Debug gad results
       ansible.builtin.debug:
