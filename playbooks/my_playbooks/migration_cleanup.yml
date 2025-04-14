@@ -1,0 +1,55 @@
+---
+####################################################################
+# Example :  Global Active Device Pair (GAD) Playbook
+####################################################################
+- name: GAD - Global Active Device Pair Management
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    secondary_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_secondary_storage_username }}"
+      password: "{{ vault_secondary_storage_secret }}"
+
+  tasks:
+    ####################################################################
+    # Task 3 : Create GAD pair with cross path server configuration
+    ####################################################################
+    - name: Delete GAD PAIR
+      hitachivantara.vspone_block.vsp.hv_gad:
+        storage_system_info:
+          serial: 810396
+        connection_info: "{{ connection_info }}"
+        secondary_connection_info: "{{ secondary_connection_info }}"
+        state: "absent"
+        spec:
+          copy_group_name: "{{ldev_id}}_gad_migration_group"
+          primary_volume_id: "{{ldev_id}}"
+      register: result
+      ignore_errors: True
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result
+
+    - name: Get all GAD pairs  for direct connection type
+      hitachivantara.vspone_block.vsp.hv_gad_facts:
+        connection_info: "{{ connection_info }}"
+        secondary_connection_info: "{{ secondary_connection_info }}"
+      register: gad_facts
+#      until: gad_facts.stdout.find("PAIR") != -1
+#      retries: 60
+#      delay: 10
+
+    - name: Debug gad results
+      ansible.builtin.debug:
+        var: gad_facts
+
