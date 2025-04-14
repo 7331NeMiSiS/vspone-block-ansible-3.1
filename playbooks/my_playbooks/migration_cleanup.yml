@@ -23,6 +23,28 @@
     ####################################################################
     # Task 3 : Create GAD pair with cross path server configuration
     ####################################################################
+    - name: SPLIT GAD PAIR
+      hitachivantara.vspone_block.vsp.hv_gad:
+        storage_system_info:
+          serial: 810396
+        connection_info: "{{ connection_info }}"
+        secondary_connection_info: "{{ secondary_connection_info }}"
+        state: "split"
+        spec:
+          copy_group_name: "{{ldev_id}}_gad_migration_group"
+          copy_pair_name: "{{ldev_id}}_gad_migration_pair"
+          local_device_group_name: "{{ldev_id}}_gad_migration_groupP_"
+          remote_device_group_name: "{{ldev_id}}_gad_migration_groupS_"
+      register: result
+      ignore_errors: True
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result
+
+    ####################################################################
+    # Task 3 : Create GAD pair with cross path server configuration
+    ####################################################################
     - name: Delete GAD PAIR
       hitachivantara.vspone_block.vsp.hv_gad:
         storage_system_info:
