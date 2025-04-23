@@ -1,0 +1,71 @@
+####################################################################
+# Playbook: Create and provision a volume to ESXi-223
+####################################################################
+- name: Create and Provision Volume to ESXi-222
+  hosts: localhost
+  gather_facts: false
+  collections:
+    - hitachivantara.vspone_block.vsp
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+    - vsp_direct_variables.yml
+
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+    # Volume configuration
+    volume_size: 100GB
+    volume_name: "William"
+    pool_id: 0  # Replace with your actual pool ID
+
+    # Host configuration
+    hostgroup_name: "DC1-ESXi-222"
+    port: "CL1-A"  # Replace with your actual port
+    host_mode: "VMWARE_EXTENSION"
+
+    # ESXi WWN (replace with actual WWN of ESXi-223)
+    esxi_wwn: "1234567890ABCDEF"  # Replace with actual WWN
+
+  tasks:
+    ####################################################################
+    # Task 1: Create a 100GB volume (LDEV)
+    ####################################################################
+    - name: Create 100GB volume for ESXi-223
+      hv_ldev:
+        connection_info: "{{ connection_info }}"
+        storage_system_info:
+          serial: "{{ storage_serial }}"
+        state: "{{ state_present }}"
+        spec:
+          pool_id: "{{ pool_id }}"
+          size: "{{ volume_size }}"
+          name: "{{ volume_name }}"
+      register: result_create_ldev
+
+    - debug:
+        var: result_create_ldev
+
+
+    ####################################################################
+    # Task 3: Present the volume to the ESXi-223 hostgroup
+    ####################################################################
+    - name: Present volume to ESXi-223 hostgroup
+      hv_hg:
+        connection_info: "{{ connection_info }}"
+        storage_system_info:
+          serial: "{{ storage_serial }}"
+        state: "{{ state_present }}"
+        spec:
+          state: "{{ substate_present_ldev }}"
+          name: "{{ hostgroup_name }}"
+          port: "{{ port }}"
+          ldevs: ["{{ result_create_ldev['data']['ldev_id'] | int }}"]
+      register: result_present_ldev
+
+    - debug:
+        var: result_present_ldev
