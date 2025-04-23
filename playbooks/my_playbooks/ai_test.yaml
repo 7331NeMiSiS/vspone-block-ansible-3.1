@@ -64,7 +64,7 @@
           state: "{{ substate_present_ldev }}"
           name: "{{ hostgroup_name }}"
           port: "{{ port }}"
-          ldevs: ["{{ result_create_ldev['data']['ldev_id'] | int }}"]
+          ldevs: ["{{ result_create_ldev['volume']['ldev_id'] | int }}"]
       register: result_present_ldev
 
     - debug:
