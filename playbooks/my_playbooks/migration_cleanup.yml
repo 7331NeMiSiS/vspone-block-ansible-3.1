@@ -29,7 +29,7 @@
           serial: 810396
         connection_info: "{{ connection_info }}"
         secondary_connection_info: "{{ secondary_connection_info }}"
-        state: "split"
+        state: "swapsplit"
         spec:
           copy_group_name: "{{ldev_id}}_gad_migration_group"
           copy_pair_name: "{{ldev_id}}_gad_migration_pair"

@@ -42,7 +42,7 @@
           primary_hostgroups:
             - name: "WilliamGAD"
               port: "CL1-A"
-              enable_preferred_path: true
+              enable_preferred_path: false
           primary_resource_group_name: "VSM_487953"
           primary_storage_serial_number: "{{primary_storage_serial}}"
           secondary_storage_serial_number: "{{secondary_storage_serial}}"

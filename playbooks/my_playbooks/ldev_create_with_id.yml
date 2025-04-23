@@ -30,8 +30,8 @@
         state: "present"
         spec:
           pool_id: 0
-          ldev_id: 306
-          size: "200GB"
+          ldev_id: "{{ ldev_id }}"
+          size: "{{ ldev_size }}GB"
           capacity_saving: "compression_deduplication"
           data_reduction_share: "true"
           name: "William"
