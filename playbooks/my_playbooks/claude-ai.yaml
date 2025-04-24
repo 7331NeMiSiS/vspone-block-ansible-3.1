@@ -1,0 +1,57 @@
+####################################################################
+# Playbook: Create and Attach Volume to Host Group
+####################################################################
+- name: Create and Attach Volume to Host Group
+  hosts: localhost
+  gather_facts: false
+  collections:
+    - hitachivantara.vspone_block.vsp
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+    - vsp_direct_variables.yml
+
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+    ####################################################################
+    # Task 1: Create 150GB ldev with direct connection
+    ####################################################################
+    - name: Create 150GB ldev with direct connection
+      hv_ldev:
+        connection_info: "{{ connection_info }}"
+        storage_system_info:
+          serial: "{{ storage_serial }}"
+        state: "{{ state_present }}"
+        spec:
+          pool_id: 0                 # Assuming pool_id 15 as in examples
+          size: 150GB                 # 150GB as requested
+          name: "William"   # Descriptive name for the volume
+      register: result_create_ldev
+
+    - debug:
+        var: result_create_ldev
+
+    ####################################################################
+    # Task 2: Present ldev to host group "DC1-ESXi-222"
+    ####################################################################
+    - name: Present ldev to host group DC1-ESXi-222
+      hv_hg:
+        connection_info: "{{ connection_info }}"
+        storage_system_info:
+          serial: "{{ storage_serial }}"
+        state: "{{ state_present }}"
+        spec:
+          state: "{{ substate_present_ldev }}"
+          name: "DC1-ESXi-222"        # Host group name as requested
+          port: "CL1-A"               # Assuming port CL1-A, adjust as needed
+          ldevs: ["{{ result_create_ldev['data']['ldev_id'] | int }}"]
+      register: result_present_ldev
+
+    - debug:
+        var: result_present_ldev
