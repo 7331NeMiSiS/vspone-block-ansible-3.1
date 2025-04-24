@@ -50,7 +50,7 @@
           state: "{{ substate_present_ldev }}"
           name: "DC1-ESXi-222"        # Host group name as requested
           port: "CL1-A"               # Assuming port CL1-A, adjust as needed
-          ldevs: ["{{ result_create_ldev['data']['ldev_id'] | int }}"]
+          ldevs: ["{{ result_create_ldev['volume']['ldev_id'] | int }}"]
       register: result_present_ldev
 
     - debug:
