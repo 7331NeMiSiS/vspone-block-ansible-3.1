@@ -1,13 +1,13 @@
 # User will use Ansible Vault to encrypt this file.
 # Ansible will decrypt this file when it executes the playbook.
-primary_storage_serial: 810396       # Example: 810018
-storage_serial: 810396       # Example: 810018
-storage_address: 192.168.180.12     # Example: storage1.company.com or sds1.company.com or 10.10.10.10
+primary_storage_serial: 840130       # Example: 810018
+storage_serial: 840130       # Example: 810018
+storage_address: 192.168.180.133     # Example: storage1.company.com or sds1.company.com or 10.10.10.10
 vault_storage_username: ansible
-vault_storage_secret: Remote01
+vault_storage_secret: Remote25
 
 
-secondary_storage_serial:  840012
-secondary_storage_address: 192.168.181.12 # Example: storage1.company.com or sds1.company.com or 10.10.10.10
+secondary_storage_serial:  840183
+secondary_storage_address: 192.168.181.133 # Example: storage1.company.com or sds1.company.com or 10.10.10.10
 vault_secondary_storage_username: ansible
-vault_secondary_storage_secret: Remote01
+vault_secondary_storage_secret: Remote25
