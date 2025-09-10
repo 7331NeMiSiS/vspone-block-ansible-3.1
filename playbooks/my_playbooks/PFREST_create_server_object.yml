@@ -1,4 +1,3 @@
----
 - name: Manage Storage Array Servers
   hosts: localhost
   gather_facts: false
