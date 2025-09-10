@@ -1,0 +1,132 @@
+---
+- name: Manage Storage Array Servers
+  hosts: localhost
+  gather_facts: false
+  vars:
+    # Configuration variables - customize these or pass via extra-vars
+    array_ip: "192.168.183.25"
+    username: "admin"
+    password: "password"
+    server_nickname: "william"
+    os_type: "VMware"
+    protocol: "iSCSI"
+    port_ids:
+      - "CL1-D"
+      - "CL2-D"
+    iscsi_names:
+      - "iqn.1992-01.com.company:server"
+
+    # API base URL
+    base_url: "https://{{ array_ip }}/ConfigurationManager/simple/v1"
+
+    # Common headers
+    common_headers:
+      Accept: "application/json, text/plain, */*"
+      Accept-Language: "en"
+      Content-Type: "application/json"
+      User-Agent: "Ansible/Storage-Array-Management"
+
+  tasks:
+    - name: Create server on storage array
+      uri:
+        url: "{{ base_url }}/objects/servers"
+        method: POST
+        headers: "{{ common_headers }}"
+        body_format: json
+        body:
+          serverNickname: "{{ server_nickname }}"
+          protocol: "{{ protocol }}"
+          osType: "{{ os_type }}"
+        user: "{{ username }}"
+        password: "{{ password }}"
+        force_basic_auth: true
+        validate_certs: false
+        status_code: [200, 201]
+      register: create_server_result
+
+    - name: Display server creation result
+      debug:
+        var: create_server_result.json
+
+    - name: Get list of servers
+      uri:
+        url: "{{ base_url }}/objects/servers"
+        method: GET
+        headers: "{{ common_headers }}"
+        user: "{{ username }}"
+        password: "{{ password }}"
+        force_basic_auth: true
+        validate_certs: false
+      register: servers_list
+
+    - name: Display servers list
+      debug:
+        var: servers_list.json
+
+    - name: Find created server ID
+      set_fact:
+        server_id: "{{ item.id }}"
+      loop: "{{ servers_list.json.data }}"
+      when: item.nickname == server_nickname
+
+    - name: Fail if server not found
+      fail:
+        msg: "Server with nickname '{{ server_nickname }}' not found"
+      when: server_id is not defined
+
+    - name: Get server connectivity details
+      uri:
+        url: "{{ base_url }}/objects/servers/{{ server_id }}"
+        method: GET
+        headers: "{{ common_headers }}"
+        user: "{{ username }}"
+        password: "{{ password }}"
+        force_basic_auth: true
+        validate_certs: false
+      register: server_details
+
+    - name: Display server connectivity details
+      debug:
+        var: server_details.json
+
+    - name: Configure server paths for each iSCSI name
+      uri:
+        url: "{{ base_url }}/objects/servers/{{ server_id }}/paths"
+        method: POST
+        headers: "{{ common_headers }}"
+        body_format: json
+        body:
+          iscsiName: "{{ item }}"
+          portIds: "{{ port_ids }}"
+        user: "{{ username }}"
+        password: "{{ password }}"
+        force_basic_auth: true
+        validate_certs: false
+        status_code: [200, 201, 204]
+      loop: "{{ iscsi_names }}"
+      register: path_config_results
+
+    - name: Display path configuration results
+      debug:
+        msg: "Path configured for {{ item.item }} with status {{ item.status }}"
+      loop: "{{ path_config_results.results }}"
+
+    - name: Get final server connectivity details
+      uri:
+        url: "{{ base_url }}/objects/servers/{{ server_id }}"
+        method: GET
+        headers: "{{ common_headers }}"
+        user: "{{ username }}"
+        password: "{{ password }}"
+        force_basic_auth: true
+        validate_certs: false
+      register: final_server_details
+
+    - name: Display final server configuration
+      debug:
+        var: final_server_details.json
+
+  handlers:
+    - name: Cleanup on failure
+      debug:
+        msg: "Consider cleaning up created resources if needed"
