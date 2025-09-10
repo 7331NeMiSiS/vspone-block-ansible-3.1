@@ -1,131 +1,179 @@
-- name: Manage Storage Array Servers
+- name: Configure Storage Array Server
   hosts: localhost
   gather_facts: false
   vars:
-    # Configuration variables - customize these or pass via extra-vars
+    # Default values - can be overridden
     array_ip: "192.168.183.25"
-    username: "admin"
-    password: "password"
-    server_nickname: "william"
+    username: "maintenance"
+    password: "raid-maintenance"
+    server_nickname: "ansible-server"
     os_type: "VMware"
     protocol: "iSCSI"
     port_ids:
       - "CL1-D"
       - "CL2-D"
-    iscsi_names:
+    iqns:
       - "iqn.1992-01.com.company:server"
-
-    # API base URL
-    base_url: "https://{{ array_ip }}/ConfigurationManager/simple/v1"
-
-    # Common headers
-    common_headers:
-      Accept: "application/json, text/plain, */*"
-      Accept-Language: "en"
-      Content-Type: "application/json"
-      User-Agent: "Ansible/Storage-Array-Management"
+    authentication_timeout: 600
+    validate_certs: false
 
   tasks:
+    - name: Create session with storage array
+      uri:
+        url: "https://{{ array_ip }}/ConfigurationManager/v1/objects/sessions"
+        method: POST
+        headers:
+          Accept: "application/json, text/plain, */*"
+          Accept-Language: "en"
+          Content-Type: "application/json"
+          Cache-Control: "no-store"
+          If-Modified-Since: "0"
+          X-Client-Type: "Colon UI"
+        body_format: json
+        body:
+          authenticationTimeout: "{{ authentication_timeout }}"
+        user: "{{ username }}"
+        password: "{{ password }}"
+        force_basic_auth: true
+        validate_certs: "{{ validate_certs }}"
+        status_code: [200, 201]
+      register: session_response
+
+    - name: Extract session token and ID
+      set_fact:
+        session_token: "{{ session_response.json.token }}"
+        session_id: "{{ session_response.json.sessionId }}"
+
+    - name: Display session information
+      debug:
+        msg: 
+          - "Session created successfully"
+          - "Token: {{ session_token }}"
+          - "Session ID: {{ session_id }}"
+
     - name: Create server on storage array
       uri:
-        url: "{{ base_url }}/objects/servers"
+        url: "https://{{ array_ip }}/ConfigurationManager/simple/v1/objects/servers"
         method: POST
-        headers: "{{ common_headers }}"
+        headers:
+          Accept: "application/json, text/plain, */*"
+          Accept-Language: "en"
+          Authorization: "Session {{ session_token }}"
+          Content-Type: "application/json"
+          X-Agent-Type: "SAE UI/{{ array_ip }}"
         body_format: json
         body:
           serverNickname: "{{ server_nickname }}"
           protocol: "{{ protocol }}"
           osType: "{{ os_type }}"
-        user: "{{ username }}"
-        password: "{{ password }}"
-        force_basic_auth: true
-        validate_certs: false
+        validate_certs: "{{ validate_certs }}"
         status_code: [200, 201]
-      register: create_server_result
+      register: create_server_response
 
     - name: Display server creation result
       debug:
-        var: create_server_result.json
+        msg: "Server '{{ server_nickname }}' created successfully"
 
     - name: Get list of servers
       uri:
-        url: "{{ base_url }}/objects/servers"
+        url: "https://{{ array_ip }}/ConfigurationManager/simple/v1/objects/servers"
         method: GET
-        headers: "{{ common_headers }}"
-        user: "{{ username }}"
-        password: "{{ password }}"
-        force_basic_auth: true
-        validate_certs: false
-      register: servers_list
-
-    - name: Display servers list
-      debug:
-        var: servers_list.json
+        headers:
+          Accept: "application/json, text/plain, */*"
+          Accept-Language: "en"
+          Authorization: "Session {{ session_token }}"
+          Content-Type: "application/json"
+          X-Agent-Type: "SAE UI/{{ array_ip }}"
+        validate_certs: "{{ validate_certs }}"
+      register: servers_response
 
     - name: Find created server ID
       set_fact:
         server_id: "{{ item.id }}"
-      loop: "{{ servers_list.json.data }}"
+      loop: "{{ servers_response.json.data }}"
       when: item.nickname == server_nickname
 
-    - name: Fail if server not found
-      fail:
-        msg: "Server with nickname '{{ server_nickname }}' not found"
-      when: server_id is not defined
+    - name: Display server information
+      debug:
+        msg:
+          - "Found server: {{ server_nickname }}"
+          - "Server ID: {{ server_id }}"
 
     - name: Get server connectivity details
       uri:
-        url: "{{ base_url }}/objects/servers/{{ server_id }}"
+        url: "https://{{ array_ip }}/ConfigurationManager/simple/v1/objects/servers/{{ server_id }}"
         method: GET
-        headers: "{{ common_headers }}"
-        user: "{{ username }}"
-        password: "{{ password }}"
-        force_basic_auth: true
-        validate_certs: false
-      register: server_details
+        headers:
+          Accept: "application/json, text/plain, */*"
+          Accept-Language: "en"
+          Authorization: "Session {{ session_token }}"
+          Content-Type: "application/json"
+          X-Agent-Type: "SAE UI/{{ array_ip }}"
+        validate_certs: "{{ validate_certs }}"
+      register: server_details_response
 
     - name: Display server connectivity details
       debug:
-        var: server_details.json
+        msg: "{{ server_details_response.json }}"
 
-    - name: Configure server paths for each iSCSI name
+    - name: Configure server paths
       uri:
-        url: "{{ base_url }}/objects/servers/{{ server_id }}/paths"
+        url: "https://{{ array_ip }}/ConfigurationManager/simple/v1/objects/servers/{{ server_id }}/paths"
         method: POST
-        headers: "{{ common_headers }}"
+        headers:
+          Accept: "application/json, text/plain, */*"
+          Accept-Language: "en"
+          Authorization: "Session {{ session_token }}"
+          Content-Type: "application/json"
+          X-Agent-Type: "SAE UI/{{ array_ip }}"
         body_format: json
         body:
           iscsiName: "{{ item }}"
           portIds: "{{ port_ids }}"
-        user: "{{ username }}"
-        password: "{{ password }}"
-        force_basic_auth: true
-        validate_certs: false
+        validate_certs: "{{ validate_certs }}"
         status_code: [200, 201, 204]
-      loop: "{{ iscsi_names }}"
-      register: path_config_results
+      loop: "{{ iqns }}"
+      register: path_config_response
 
     - name: Display path configuration results
       debug:
-        msg: "Path configured for {{ item.item }} with status {{ item.status }}"
-      loop: "{{ path_config_results.results }}"
+        msg: "Successfully configured path for IQN: {{ item.item }}"
+      loop: "{{ path_config_response.results }}"
 
-    - name: Get final server connectivity details
+    - name: Final server status check
       uri:
-        url: "{{ base_url }}/objects/servers/{{ server_id }}"
+        url: "https://{{ array_ip }}/ConfigurationManager/simple/v1/objects/servers/{{ server_id }}"
         method: GET
-        headers: "{{ common_headers }}"
-        user: "{{ username }}"
-        password: "{{ password }}"
-        force_basic_auth: true
-        validate_certs: false
-      register: final_server_details
+        headers:
+          Accept: "application/json, text/plain, */*"
+          Accept-Language: "en"
+          Authorization: "Session {{ session_token }}"
+          Content-Type: "application/json"
+          X-Agent-Type: "SAE UI/{{ array_ip }}"
+        validate_certs: "{{ validate_certs }}"
+      register: final_server_status
 
     - name: Display final server configuration
       debug:
-        var: final_server_details.json
+        msg:
+          - "=== Final Server Configuration ==="
+          - "Server Nickname: {{ final_server_status.json.nickname }}"
+          - "Server ID: {{ final_server_status.json.id }}"
+          - "Protocol: {{ final_server_status.json.protocol }}"
+          - "OS Type: {{ final_server_status.json.osType }}"
+          - "Number of Paths: {{ final_server_status.json.numberOfPaths }}"
+          - "Total Capacity: {{ final_server_status.json.totalCapacity }}"
+          - "Used Capacity: {{ final_server_status.json.usedCapacity }}"
+          - "Paths: {{ final_server_status.json.paths | default([]) }}"
 
   handlers:
-    - name: Cleanup on failure
-      debug:
-        msg: "Consider cleaning up created resources if needed"
+    - name: Cleanup session on failure
+      uri:
+        url: "https://{{ array_ip }}/ConfigurationManager/v1/objects/sessions/{{ session_id }}"
+        method: DELETE
+        headers:
+          Authorization: "Session {{ session_token }}"
+        validate_certs: "{{ validate_certs }}"
+        status_code: [200, 204, 404]
+      when: session_token is defined
+      ignore_errors: true
