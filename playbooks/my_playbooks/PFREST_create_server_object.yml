@@ -1,243 +1,4 @@
----
-- name: Configure Storage Array Server
-  hosts: localhost
-  gather_facts: false
-  vars:
-    # Default values - can be overridden
-    array_ip: "192.168.183.25"
-    username: "maintenance"
-    password: "raid-maintenance"
-    server_nickname: "ansible-server"
-    os_type: "VMware"
-    protocol: "iSCSI"
-    port_ids:
-      - "CL1-D"
-      - "CL2-D"
-    iqns:
-      - "iqn.1992-01.com.company:server"
-    authentication_timeout: 600
-    validate_certs: false
-    target_resource_group_id: 1
-    # Task completion checking settings
-    max_wait_time: 300  # Maximum wait time in seconds (5 minutes)
-    check_interval: 5   # Check every 5 seconds
-
-  tasks:
-    - name: Create session with storage array
-      uri:
-        url: "https://{{ array_ip }}/ConfigurationManager/v1/objects/sessions"
-        method: POST
-        headers:
-          Accept: "application/json, text/plain, */*"
-          Accept-Language: "en"
-          Content-Type: "application/json"
-          Cache-Control: "no-store"
-          If-Modified-Since: "0"
-          X-Client-Type: "Colon UI"
-        body_format: json
-        body:
-          authenticationTimeout: "{{ authentication_timeout }}"
-        user: "{{ username }}"
-        password: "{{ password }}"
-        force_basic_auth: true
-        validate_certs: "{{ validate_certs }}"
-        status_code: [200, 201, 202]
-      register: session_response
-
-    - name: Extract session token and ID
-      set_fact:
-        session_token: "{{ session_response.json.token }}"
-        session_id: "{{ session_response.json.sessionId }}"
-
-    - name: Display session information
-      debug:
-        msg:
-          - "Session created successfully"
-          - "Token: {{ session_token }}"
-          - "Session ID: {{ session_id }}"
-
-    - name: Create server on storage array
-      uri:
-        url: "https://{{ array_ip }}/ConfigurationManager/simple/v1/objects/servers"
-        method: POST
-        headers:
-          Accept: "application/json, text/plain, */*"
-          Accept-Language: "en"
-          Authorization: "Session {{ session_token }}"
-          Content-Type: "application/json"
-          X-Agent-Type: "SAE UI/{{ array_ip }}"
-        body_format: json
-        body:
-          serverNickname: "{{ server_nickname }}"
-          protocol: "{{ protocol }}"
-          osType: "{{ os_type }}"
-        validate_certs: "{{ validate_certs }}"
-        status_code: [200, 201, 202, 204]
-      register: create_server_response
-
-    - name: Check if server creation returned a status resource
-      set_fact:
-        server_creation_status_url: "{{ create_server_response.json.statusResource | default('') }}"
-      when: create_server_response.json.statusResource is defined
-
-    - name: Wait for server creation to complete
-      uri:
-        url: "https://{{ array_ip }}{{ server_creation_status_url }}"
-        method: GET
-        headers:
-          Accept: "application/json, text/plain, */*"
-          Accept-Language: "en"
-          Authorization: "Session {{ session_token }}"
-          Content-Type: "application/json"
-          X-Agent-Type: "SAE UI/{{ array_ip }}"
-        validate_certs: "{{ validate_certs }}"
-      register: server_creation_status
-      until: (server_creation_status.status == 404) or  (server_creation_status.json is defined and server_creation_status.json.data is defined and server_creation_status.json.data | length > 0 and server_creation_status.json.data[0].progress is defined and server_creation_status.json.data[0].progress == "completed") or (server_creation_status.json is defined and server_creation_status.json.progress is defined and server_creation_status.json.progress == "completed")
-      retries: "{{ (max_wait_time / check_interval) | int }}"
-      delay: "{{ check_interval }}"
-      when: server_creation_status_url != ""
-
-
-    - name: Display server creation status
-      debug:
-        msg:
-          - "Server creation task completed"
-          - "Status: {{ server_creation_status.json.data[0].status | default('immediate') }}"
-          - "Progress: {{ server_creation_status.json.data[0].progress | default('completed') }}"
-      when: server_creation_status_url != ""
-
-    - name: Display server creation result
-      debug:
-        msg: "Server '{{ server_nickname }}' created successfully"
-
-    - name: Wait for system to stabilize
-      pause:
-        seconds: 3
-
-    - name: Get list of servers
-      uri:
-        url: "https://{{ array_ip }}/ConfigurationManager/simple/v1/objects/servers"
-        method: GET
-        headers:
-          Accept: "application/json, text/plain, */*"
-          Accept-Language: "en"
-          Authorization: "Session {{ session_token }}"
-          Content-Type: "application/json"
-          X-Agent-Type: "SAE UI/{{ array_ip }}"
-        validate_certs: "{{ validate_certs }}"
-      register: servers_response
-
-    - name: Find created server ID
-      set_fact:
-        server_id: "{{ item.id }}"
-      loop: "{{ servers_response.json.data }}"
-      when: item.nickname == server_nickname
-
-    - name: Display server information
-      debug:
-        msg:
-          - "Found server: {{ server_nickname }}"
-          - "Server ID: {{ server_id }}"
-
-    - name: Get server connectivity details
-      uri:
-        url: "https://{{ array_ip }}/ConfigurationManager/simple/v1/objects/servers/{{ server_id }}"
-        method: GET
-        headers:
-          Accept: "application/json, text/plain, */*"
-          Accept-Language: "en"
-          Authorization: "Session {{ session_token }}"
-          Content-Type: "application/json"
-          X-Agent-Type: "SAE UI/{{ array_ip }}"
-        validate_certs: "{{ validate_certs }}"
-      register: server_details_response
-
-    - name: Display server connectivity details
-      debug:
-        msg: "{{ server_details_response.json }}"
-
-    - name: Prepare HBA list
-      set_fact:
-        hba_list: "{{ hba_list | default([]) + [{'iscsiName': item}] }}"
-      loop: "{{ iqns }}"
-
-    - name: Configure HBAs for server
-      uri:
-        url: "https://{{ array_ip }}/ConfigurationManager/simple/v1/objects/servers/{{ server_id }}/hbas"
-        method: POST
-        headers:
-          Accept: "application/json, text/plain, */*"
-          Accept-Language: "en"
-          Authorization: "Session {{ session_token }}"
-          Content-Type: "application/json"
-          X-Agent-Type: "SAE UI/{{ array_ip }}"
-        body_format: json
-        body:
-          hbas: "{{ hba_list }}"
-        validate_certs: "{{ validate_certs }}"
-        status_code: [200, 201, 202, 204]
-      register: hba_config_response
-
-    - name: Wait for system to stabilize
-      pause:
-        seconds: 10
-
-
-    - name: Configure server paths
-      uri:
-        url: "https://{{ array_ip }}/ConfigurationManager/simple/v1/objects/servers/{{ server_id }}/paths"
-        method: POST
-        headers:
-          Accept: "application/json, text/plain, */*"
-          Accept-Language: "en"
-          Authorization: "Session {{ session_token }}"
-          Content-Type: "application/json"
-          X-Agent-Type: "SAE UI/{{ array_ip }}"
-        body_format: json
-        body:
-          iscsiName: "{{ item }}"
-          portIds: "{{ port_ids }}"
-        validate_certs: "{{ validate_certs }}"
-        status_code: [200, 201, 204, 202]
-      loop: "{{ iqns }}"
-      register: path_config_response
-
-    - name: Wait for path configuration tasks to complete
-      uri:
-        url: "https://{{ array_ip }}{{ item.json.statusResource }}"
-        method: GET
-        headers:
-          Accept: "application/json, text/plain, */*"
-          Accept-Language: "en"
-          Authorization: "Session {{ session_token }}"
-          Content-Type: "application/json"
-          X-Agent-Type: "SAE UI/{{ array_ip }}"
-        validate_certs: "{{ validate_certs }}"
-      register: path_status
-      until: (path_status.status == 404) or  (path_status.json is defined and path_status.json.data is defined and path_status.json.data | length > 0 and path_status.json.data[0].progress is defined and path_status.json.data[0].progress == "completed") or (path_status.json is defined and path_status.json.progress is defined and path_status.json.progress == "completed")
-      retries: "{{ (max_wait_time / check_interval) | int }}"
-      delay: "{{ check_interval }}"
-      loop: "{{ path_config_response.results }}"
-      when: item.json.statusResource is defined
-
-    - name: Display path configuration results
-      debug:
-        msg: "Successfully configured path for IQN: {{ item.item }}"
-      loop: "{{ path_config_response.results }}"
-
-    - name: Display path configuration completion status
-      debug:
-        msg:
-          - "Path configuration task completed for IQN: {{ item.item.item }}"
-          - "Status: {{ item.json.data[0].status | default('immediate') }}"
-          - "Progress: {{ item.json.data[0].progress | default('completed') }}"
-      loop: "{{ path_status.results | default([]) }}"
-      when: path_status is defined and path_status.results is defined
-
-
-    - name: Wait for system to stabilize
-      pause:
-        seconds: 10
+# Add these tasks at the end, before the handlers section
 
     - name: Get all host groups to find matching server
       uri:
@@ -252,23 +13,29 @@
         validate_certs: "{{ validate_certs }}"
       register: all_host_groups_response
 
-    - name: Find host group matching server nickname
+    - name: Find all host groups matching server nickname
       set_fact:
-        matching_host_group: "{{ item }}"
+        matching_host_groups: "{{ matching_host_groups | default([]) + [item] }}"
       loop: "{{ all_host_groups_response.json.data }}"
       when: item.hostGroupName == server_nickname
 
     - name: Display found host group information
       debug:
         msg:
-          - "Found matching host group:"
-          - "Host Group ID: {{ matching_host_group.hostGroupId }}"
-          - "Host Group Name: {{ matching_host_group.hostGroupName }}"
-          - "Port ID: {{ matching_host_group.portId }}"
-          - "Host Group Number: {{ matching_host_group.hostGroupNumber }}"
-      when: matching_host_group is defined
+          - "Found {{ matching_host_groups | length }} matching host groups:"
+          - "Host Group ID: {{ item.hostGroupId }}"
+          - "Host Group Name: {{ item.hostGroupName }}"
+          - "Port ID: {{ item.portId }}"
+          - "Host Group Number: {{ item.hostGroupNumber }}"
+      loop: "{{ matching_host_groups | default([]) }}"
+      when: matching_host_groups is defined and matching_host_groups | length > 0
 
-    - name: Add host group to resource group
+    - name: Prepare host group IDs list for resource group assignment
+      set_fact:
+        host_group_ids_list: "{{ matching_host_groups | map(attribute='hostGroupId') | list }}"
+      when: matching_host_groups is defined and matching_host_groups | length > 0
+
+    - name: Add all matching host groups to resource group
       uri:
         url: "https://{{ array_ip }}/ConfigurationManager/v1/objects/resource-groups/{{ target_resource_group_id }}/actions/add-resource/invoke"
         method: POST
@@ -281,12 +48,11 @@
         body_format: json
         body:
           parameters:
-            hostGroupIds:
-              - "{{ matching_host_group.hostGroupId }}"
+            hostGroupIds: "{{ host_group_ids_list }}"
         validate_certs: "{{ validate_certs }}"
-        status_code: [ 200, 201, 202, 204 ]
+        status_code: [200, 201, 202, 204]
       register: add_to_resource_group_response
-      when: matching_host_group is defined
+      when: matching_host_groups is defined and matching_host_groups | length > 0
 
     - name: Wait for resource group assignment to complete
       uri:
@@ -303,56 +69,18 @@
       until: resource_group_status.status == 200
       retries: "{{ (max_wait_time / check_interval) | int }}"
       delay: "{{ check_interval }}"
-      when: matching_host_group is defined and add_to_resource_group_response.json.affectedResources is defined
+      when: matching_host_groups is defined and matching_host_groups | length > 0 and add_to_resource_group_response.json.affectedResources is defined
 
     - name: Display resource group assignment completion
       debug:
         msg:
-          - "Successfully added host group '{{ server_nickname }}' to resource group {{ target_resource_group_id }}"
-          - "Host Group ID: {{ matching_host_group.hostGroupId }}"
-      when: matching_host_group is defined
+          - "Successfully added {{ matching_host_groups | length }} host groups named '{{ server_nickname }}' to resource group {{ target_resource_group_id }}"
+          - "Host Group IDs: {{ host_group_ids_list | join(', ') }}"
+      when: matching_host_groups is defined and matching_host_groups | length > 0
 
     - name: Display warning if no matching host group found
       debug:
         msg:
           - "WARNING: No host group found with name '{{ server_nickname }}'"
           - "Please verify the server was created successfully and host groups exist"
-      when: matching_host_group is not defined
-
-    - name: Final server status check
-      uri:
-        url: "https://{{ array_ip }}/ConfigurationManager/simple/v1/objects/servers/{{ server_id }}"
-        method: GET
-        headers:
-          Accept: "application/json, text/plain, */*"
-          Accept-Language: "en"
-          Authorization: "Session {{ session_token }}"
-          Content-Type: "application/json"
-          X-Agent-Type: "SAE UI/{{ array_ip }}"
-        validate_certs: "{{ validate_certs }}"
-      register: final_server_status
-
-    - name: Display final server configuration
-      debug:
-        msg:
-          - "=== Final Server Configuration ==="
-          - "Server Nickname: {{ final_server_status.json.nickname }}"
-          - "Server ID: {{ final_server_status.json.id }}"
-          - "Protocol: {{ final_server_status.json.protocol }}"
-          - "OS Type: {{ final_server_status.json.osType }}"
-          - "Number of Paths: {{ final_server_status.json.numberOfPaths }}"
-          - "Total Capacity: {{ final_server_status.json.totalCapacity }}"
-          - "Used Capacity: {{ final_server_status.json.usedCapacity }}"
-          - "Paths: {{ final_server_status.json.paths | default([]) }}"
-
-  handlers:
-    - name: Cleanup session on failure
-      uri:
-        url: "https://{{ array_ip }}/ConfigurationManager/v1/objects/sessions/{{ session_id }}"
-        method: DELETE
-        headers:
-          Authorization: "Session {{ session_token }}"
-        validate_certs: "{{ validate_certs }}"
-        status_code: [200, 204, 404]
-      when: session_token is defined
-      ignore_errors: true
+      when: matching_host_groups is not defined or matching_host_groups | length == 0
