@@ -92,10 +92,11 @@
           X-Agent-Type: "SAE UI/{{ array_ip }}"
         validate_certs: "{{ validate_certs }}"
       register: server_creation_status
-      until: server_creation_status.json.data[0].progress == "completed"
+      until: (server_creation_status.status == 404) or  (server_creation_status.json is defined and server_creation_status.json.data is defined and server_creation_status.json.data | length > 0 and server_creation_status.json.data[0].progress is defined and server_creation_status.json.data[0].progress == "completed") or (server_creation_status.json is defined and server_creation_status.json.progress is defined and server_creation_status.json.progress == "completed")
       retries: "{{ (max_wait_time / check_interval) | int }}"
       delay: "{{ check_interval }}"
       when: server_creation_status_url != ""
+
 
     - name: Display server creation status
       debug:
