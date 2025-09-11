@@ -195,9 +195,10 @@
           X-Agent-Type: "SAE UI/{{ array_ip }}"
         validate_certs: "{{ validate_certs }}"
       register: hba_status
-      until: (hba_status.status == 404) or (hba_status.json is defined and hba_status.json.data is defined and hba_status.json.data | length > 0 and hba_status.json.data[0].progress is defined and hba_status.json.data[0].progress == "completed") or (hba_status.json is defined and hba_status.json.progress is defined and hba_status.json.progress == "completed")
+      until: hba_status.json.data[0].progress == "completed"
       retries: "{{ (max_wait_time / check_interval) | int }}"
       delay: "{{ check_interval }}"
+      when: hba_status_url != ""
 
     - name: Display HBA configuration status
       debug:
@@ -205,6 +206,7 @@
           - "HBA configuration task completed"
           - "Status: {{ hba_status.json.data[0].status | default('immediate') }}"
           - "Progress: {{ hba_status.json.data[0].progress | default('completed') }}"
+      when: hba_status_url != ""
 
     - name: Display HBA configuration result
       debug:
