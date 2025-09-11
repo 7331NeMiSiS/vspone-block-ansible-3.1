@@ -234,6 +234,88 @@
       loop: "{{ path_status.results | default([]) }}"
       when: path_status is defined and path_status.results is defined
 
+     
+
+    - name: Get all host groups to find matching server
+      uri:
+        url: "https://{{ array_ip }}/ConfigurationManager/v1/objects/host-groups"
+        method: GET
+        headers:
+          Accept: "application/json, text/plain, */*"
+          Accept-Language: "en"
+          Authorization: "Session {{ session_token }}"
+          Content-Type: "application/json"
+          X-Agent-Type: "SAE UI/{{ array_ip }}"
+        validate_certs: "{{ validate_certs }}"
+      register: all_host_groups_response
+
+    - name: Find host group matching server nickname
+      set_fact:
+        matching_host_group: "{{ item }}"
+      loop: "{{ all_host_groups_response.json.data }}"
+      when: item.hostGroupName == server_nickname
+
+    - name: Display found host group information
+      debug:
+        msg:
+          - "Found matching host group:"
+          - "Host Group ID: {{ matching_host_group.hostGroupId }}"
+          - "Host Group Name: {{ matching_host_group.hostGroupName }}"
+          - "Port ID: {{ matching_host_group.portId }}"
+          - "Host Group Number: {{ matching_host_group.hostGroupNumber }}"
+      when: matching_host_group is defined
+
+    - name: Add host group to resource group
+      uri:
+        url: "https://{{ array_ip }}/ConfigurationManager/v1/objects/resource-groups/{{ target_resource_group_id }}/actions/add-resource/invoke"
+        method: POST
+        headers:
+          Accept: "application/json, text/plain, */*"
+          Accept-Language: "en"
+          Authorization: "Session {{ session_token }}"
+          Content-Type: "application/json"
+          X-Agent-Type: "SAE UI/{{ array_ip }}"
+        body_format: json
+        body:
+          parameters:
+            hostGroupIds:
+              - "{{ matching_host_group.hostGroupId }}"
+        validate_certs: "{{ validate_certs }}"
+        status_code: [ 200, 201, 202, 204 ]
+      register: add_to_resource_group_response
+      when: matching_host_group is defined
+
+    - name: Wait for resource group assignment to complete
+      uri:
+        url: "https://{{ array_ip }}{{ add_to_resource_group_response.json.affectedResources[0] }}"
+        method: GET
+        headers:
+          Accept: "application/json, text/plain, */*"
+          Accept-Language: "en"
+          Authorization: "Session {{ session_token }}"
+          Content-Type: "application/json"
+          X-Agent-Type: "SAE UI/{{ array_ip }}"
+        validate_certs: "{{ validate_certs }}"
+      register: resource_group_status
+      until: resource_group_status.status == 200
+      retries: "{{ (max_wait_time / check_interval) | int }}"
+      delay: "{{ check_interval }}"
+      when: matching_host_group is defined and add_to_resource_group_response.json.affectedResources is defined
+
+    - name: Display resource group assignment completion
+      debug:
+        msg:
+          - "Successfully added host group '{{ server_nickname }}' to resource group {{ target_resource_group_id }}"
+          - "Host Group ID: {{ matching_host_group.hostGroupId }}"
+      when: matching_host_group is defined
+
+    - name: Display warning if no matching host group found
+      debug:
+        msg:
+          - "WARNING: No host group found with name '{{ server_nickname }}'"
+          - "Please verify the server was created successfully and host groups exist"
+      when: matching_host_group is not defined
+
     - name: Final server status check
       uri:
         url: "https://{{ array_ip }}/ConfigurationManager/simple/v1/objects/servers/{{ server_id }}"
