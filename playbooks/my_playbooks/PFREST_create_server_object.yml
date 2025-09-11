@@ -141,7 +141,7 @@
 
     - name: Display HBA configuration result
       debug:
-        msg:
+        msg: 
           - "HBAs configured successfully for server '{{ server_nickname }}'"
           - "Configured IQNs: {{ iqns }}"
 
