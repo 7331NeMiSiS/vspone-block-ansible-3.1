@@ -92,11 +92,10 @@
           X-Agent-Type: "SAE UI/{{ array_ip }}"
         validate_certs: "{{ validate_certs }}"
       register: server_creation_status
-      until: (server_creation_status.status == 404) or  (server_creation_status.json is defined and server_creation_status.json.data is defined and server_creation_status.json.data | length > 0 and server_creation_status.json.data[0].progress is defined and server_creation_status.json.data[0].progress == "completed") or (server_creation_status.json is defined and server_creation_status.json.progress is defined and server_creation_status.json.progress == "completed")
+      until: server_creation_status.json.data[0].progress == "completed"
       retries: "{{ (max_wait_time / check_interval) | int }}"
       delay: "{{ check_interval }}"
       when: server_creation_status_url != ""
-
 
     - name: Display server creation status
       debug:
@@ -178,14 +177,19 @@
         status_code: [200, 201, 202, 204]
       register: hba_config_response
 
-    - name: Check if HBA configuration returned a status resource
+    - name: Check if HBA configuration returned status resources
       set_fact:
-        hba_status_url: "{{ hba_config_response.json.statusResource | default('') }}"
-      when: hba_config_response.json.statusResource is defined
+        hba_status_resources: "{{ hba_config_response.json | default([]) }}"
+      when: hba_config_response.json is defined
 
-    - name: Wait for HBA configuration to complete
+    - name: Display HBA status resources for debugging
+      debug:
+        msg: "HBA status resources: {{ hba_status_resources }}"
+      when: hba_status_resources is defined
+
+    - name: Wait for HBA configuration tasks to complete
       uri:
-        url: "https://{{ array_ip }}{{ hba_status_url }}"
+        url: "https://{{ array_ip }}{{ item.statusResource }}"
         method: GET
         headers:
           Accept: "application/json, text/plain, */*"
@@ -194,19 +198,43 @@
           Content-Type: "application/json"
           X-Agent-Type: "SAE UI/{{ array_ip }}"
         validate_certs: "{{ validate_certs }}"
-      register: hba_status
-      until: hba_status.json.data[0].progress == "completed"
+        status_code: [200, 404]
+      register: hba_status_list
+      until: >
+        (hba_status_item.status == 404) or
+        (hba_status_item.json is defined and 
+         hba_status_item.json.data is defined and 
+         hba_status_item.json.data | length > 0 and
+         hba_status_item.json.data[0].progress is defined and
+         hba_status_item.json.data[0].progress == "completed") or
+        (hba_status_item.json is defined and 
+         hba_status_item.json.progress is defined and
+         hba_status_item.json.progress == "completed")
       retries: "{{ (max_wait_time / check_interval) | int }}"
       delay: "{{ check_interval }}"
-      when: hba_status_url != ""
+      loop: "{{ hba_status_resources }}"
+      vars:
+        hba_status_item: "{{ hba_status_list }}"
+      when: hba_status_resources is defined and hba_status_resources | length > 0
+      failed_when: false
+
+    - name: Display HBA configuration status responses for debugging
+      debug:
+        msg: "HBA task {{ item.item.statusResource }} status response: {{ item.json | default('No JSON response') }}"
+      loop: "{{ hba_status_list.results | default([]) }}"
+      when: hba_status_list is defined and hba_status_list.results is defined
 
     - name: Display HBA configuration status
       debug:
         msg:
-          - "HBA configuration task completed"
-          - "Status: {{ hba_status.json.data[0].status | default('immediate') }}"
-          - "Progress: {{ hba_status.json.data[0].progress | default('completed') }}"
-      when: hba_status_url != ""
+          - "HBA configuration task completed for: {{ item.item.statusResource }}"
+          - "Status: {{ item.json.data[0].status | default(item.json.status | default('immediate')) }}"
+          - "Progress: {{ item.json.data[0].progress | default(item.json.progress | default('completed')) }}"
+      loop: "{{ hba_status_list.results | default([]) }}"
+      when: 
+        - hba_status_list is defined
+        - hba_status_list.results is defined
+        - item.json is defined
 
     - name: Display HBA configuration result
       debug:
@@ -245,7 +273,7 @@
           X-Agent-Type: "SAE UI/{{ array_ip }}"
         validate_certs: "{{ validate_certs }}"
       register: path_status
-      until: (path_status.status == 404) or  (path_status.json is defined and path_status.json.data is defined and path_status.json.data | length > 0 and path_status.json.data[0].progress is defined and path_status.json.data[0].progress == "completed") or (path_status.json is defined and path_status.json.progress is defined and path_status.json.progress == "completed")
+      until: path_status.json.data[0].progress == "completed"
       retries: "{{ (max_wait_time / check_interval) | int }}"
       delay: "{{ check_interval }}"
       loop: "{{ path_config_response.results }}"
