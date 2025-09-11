@@ -75,10 +75,11 @@
     - name: Display server creation result
       debug:
         msg: "Server '{{ server_nickname }}' created successfully"
+
     - name: Wait for 30 seconds
       pause:
         seconds: 30
-        
+
     - name: Get list of servers
       uri:
         url: "https://{{ array_ip }}/ConfigurationManager/simple/v1/objects/servers"
@@ -120,6 +121,29 @@
     - name: Display server connectivity details
       debug:
         msg: "{{ server_details_response.json }}"
+
+    - name: Configure HBAs for server
+      uri:
+        url: "https://{{ array_ip }}/ConfigurationManager/simple/v1/objects/servers/{{ server_id }}/hbas"
+        method: POST
+        headers:
+          Accept: "application/json, text/plain, */*"
+          Accept-Language: "en"
+          Authorization: "Session {{ session_token }}"
+          Content-Type: "application/json"
+          X-Agent-Type: "SAE UI/{{ array_ip }}"
+        body_format: json
+        body:
+          hbas: "{{ iqns | map('regex_replace', '^(.*)$', {'iscsiName': '\\1'}) | list }}"
+        validate_certs: "{{ validate_certs }}"
+        status_code: [200, 201, 202, 204]
+      register: hba_config_response
+
+    - name: Display HBA configuration result
+      debug:
+        msg:
+          - "HBAs configured successfully for server '{{ server_nickname }}'"
+          - "Configured IQNs: {{ iqns }}"
 
     - name: Configure server paths
       uri:
