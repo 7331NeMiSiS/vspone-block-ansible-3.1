@@ -1,3 +1,4 @@
+---
 - name: Configure Storage Array Server
   hosts: localhost
   gather_facts: false
@@ -16,6 +17,7 @@
       - "iqn.1992-01.com.company:server"
     authentication_timeout: 600
     validate_certs: false
+    target_resource_group_id: 1
 
   tasks:
     - name: Create session with storage array
@@ -36,7 +38,7 @@
         password: "{{ password }}"
         force_basic_auth: true
         validate_certs: "{{ validate_certs }}"
-        status_code: [200, 201, 202]
+        status_code: [200, 201,202 ]
       register: session_response
 
     - name: Extract session token and ID
@@ -46,7 +48,7 @@
 
     - name: Display session information
       debug:
-        msg: 
+        msg:
           - "Session created successfully"
           - "Token: {{ session_token }}"
           - "Session ID: {{ session_id }}"
@@ -67,13 +69,16 @@
           protocol: "{{ protocol }}"
           osType: "{{ os_type }}"
         validate_certs: "{{ validate_certs }}"
-        status_code: [200, 201, 202]
+        status_code: [200, 201,202,204]
       register: create_server_response
 
     - name: Display server creation result
       debug:
         msg: "Server '{{ server_nickname }}' created successfully"
-
+    - name: Wait for 30 seconds
+      pause:
+        seconds: 30
+        
     - name: Get list of servers
       uri:
         url: "https://{{ array_ip }}/ConfigurationManager/simple/v1/objects/servers"
@@ -131,7 +136,7 @@
           iscsiName: "{{ item }}"
           portIds: "{{ port_ids }}"
         validate_certs: "{{ validate_certs }}"
-        status_code: [200, 201, 204, 202]
+        status_code: [200, 201, 204,202]
       loop: "{{ iqns }}"
       register: path_config_response
 
