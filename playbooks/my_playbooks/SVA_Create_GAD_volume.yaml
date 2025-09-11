@@ -17,21 +17,35 @@
       address: "{{ secondary_storage_address }}"
       username: "{{ vault_storage_username }}"
       password: "{{ vault_storage_secret }}"
-    primary_volume: 12
-
-    # Server definitions
+    primary_volume_size: 10
     primary_servers:
       - "william"
     secondary_servers:
       - "johann"
     ticket: "srv109045"
-
-    # Port definitions (you can customize these as needed)
     ports:
       - "CL1-D"
       - "CL2-D"
 
   tasks:
+    ###########################################################################
+    # Task Name : Create ldev with capacity saving and data_reduction_share
+    ###########################################################################
+    - name: Create ldev with capacity saving and data_reduction_share
+      hitachivantara.vspone_block.vsp.hv_ldev:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          pool_id: 0
+          size: "{{primary_volume_size}}GB"
+          capacity_saving: "compression_deduplication"
+          data_reduction_share: true
+      register: ldev_result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: ldev_result
+
     ####################################################################
     # Task Name : Build dynamic hostgroup configurations
     ####################################################################
@@ -76,7 +90,7 @@
         spec:
           copy_group_name: "{{ticket}}_copy_group"
           copy_pair_name: "{{ticket}}_copy_pair"
-          primary_volume_id: "{{primary_volume}}"
+          primary_volume_id: "{{ldev_result.volume.ldev_id}}"
           secondary_pool_id: 0
           primary_hostgroups: "{{ primary_hostgroups }}"
           secondary_hostgroups: "{{ secondary_hostgroups }}"
