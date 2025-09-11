@@ -1,4 +1,3 @@
----
 ####################################################################
 # Example :  Global Active Device Pair (GAD) Facts Playbook
 ####################################################################
@@ -15,8 +14,8 @@
       password: "{{ vault_storage_secret }}"
     secondary_connection_info:
       address: "{{ secondary_storage_address }}"
-      username: "{{ vault_secondary_storage_username }}"
-      password: "{{ vault_secondary_storage_secret }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
   tasks:
     ####################################################################
     # Task Name : Get all GAD pairs from all copy groups
