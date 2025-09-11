@@ -17,6 +17,7 @@
       address: "{{ secondary_storage_address }}"
       username: "{{ vault_storage_username }}"
       password: "{{ vault_storage_secret }}"
+    primary_volume: 12
 
     # Server definitions
     primary_servers:
@@ -75,7 +76,7 @@
         spec:
           copy_group_name: "{{ticket}}_copy_group"
           copy_pair_name: "{{ticket}}_copy_pair"
-          primary_volume_id: 0
+          primary_volume_id: {{primary_volume}}
           secondary_pool_id: 0
           primary_hostgroups: "{{ primary_hostgroups }}"
           secondary_hostgroups: "{{ secondary_hostgroups }}"
