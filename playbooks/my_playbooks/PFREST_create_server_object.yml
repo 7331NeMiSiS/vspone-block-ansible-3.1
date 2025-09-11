@@ -314,8 +314,9 @@
     - name: Display resource group assignment completion
       debug:
         msg:
-          - "Successfully added {{ matching_host_groups | length }} host groups named '{{ server_nickname }}' to resource group {{ target_resource_group_id }}"
+          - "{{ 'Successfully added' if add_to_resource_group_response.status in [200, 201, 202, 204] else 'Confirmed already present:' }} {{ matching_host_groups | length }} host groups named '{{ server_nickname }}' {{ 'to' if add_to_resource_group_response.status in [200, 201, 202, 204] else 'in' }} resource group {{ target_resource_group_id }}"
           - "Host Group IDs: {{ host_group_ids_list | join(', ') }}"
+          - "{{ 'Status: Added to resource group' if add_to_resource_group_response.status in [200, 201, 202, 204] else 'Status: Already in resource group (no action needed)' }}"
       when: matching_host_groups is defined and matching_host_groups | length > 0
 
     - name: Display warning if no matching host group found
@@ -324,19 +325,6 @@
           - "WARNING: No host group found with name '{{ server_nickname }}'"
           - "Please verify the server was created successfully and host groups exist"
       when: matching_host_groups is not defined or matching_host_groups | length == 0
-    - name: Display resource group assignment completion
-      debug:
-        msg:
-          - "Successfully added host group '{{ server_nickname }}' to resource group {{ target_resource_group_id }}"
-          - "Host Group ID: {{ matching_host_group.hostGroupId }}"
-      when: matching_host_group is defined
-
-    - name: Display warning if no matching host group found
-      debug:
-        msg:
-          - "WARNING: No host group found with name '{{ server_nickname }}'"
-          - "Please verify the server was created successfully and host groups exist"
-      when: matching_host_group is not defined
 
     - name: Final server status check
       uri:
