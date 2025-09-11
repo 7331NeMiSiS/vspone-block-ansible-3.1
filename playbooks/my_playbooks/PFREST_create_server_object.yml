@@ -290,7 +290,7 @@
           parameters:
             hostGroupIds: "{{ host_group_ids_list }}"
         validate_certs: "{{ validate_certs }}"
-        status_code: [200, 201, 202, 204]
+        status_code: [200, 201, 202, 204,412]
       register: add_to_resource_group_response
       when: matching_host_groups is defined and matching_host_groups | length > 0
 
