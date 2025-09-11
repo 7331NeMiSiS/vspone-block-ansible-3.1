@@ -5,8 +5,8 @@
   vars:
     # Configuration variables - customize these or pass via extra-vars
     array_ip: "192.168.183.25"
-    username: "admin"
-    password: "password"
+    username: "maintenance"
+    password: "raid-maintenance"
     server_nickname: "william"
     os_type: "VMware"
     protocol: "iSCSI"
