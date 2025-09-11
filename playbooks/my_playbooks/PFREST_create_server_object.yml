@@ -234,7 +234,10 @@
       loop: "{{ path_status.results | default([]) }}"
       when: path_status is defined and path_status.results is defined
 
-     
+
+    - name: Wait for system to stabilize
+      pause:
+        seconds: 10
 
     - name: Get all host groups to find matching server
       uri:
