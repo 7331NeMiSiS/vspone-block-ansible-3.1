@@ -18,6 +18,9 @@
     authentication_timeout: 600
     validate_certs: false
     target_resource_group_id: 1
+    # Task completion checking settings
+    max_wait_time: 300  # Maximum wait time in seconds (5 minutes)
+    check_interval: 5   # Check every 5 seconds
 
   tasks:
     - name: Create session with storage array
@@ -38,7 +41,7 @@
         password: "{{ password }}"
         force_basic_auth: true
         validate_certs: "{{ validate_certs }}"
-        status_code: [200, 201,202 ]
+        status_code: [200, 201, 202]
       register: session_response
 
     - name: Extract session token and ID
@@ -69,16 +72,46 @@
           protocol: "{{ protocol }}"
           osType: "{{ os_type }}"
         validate_certs: "{{ validate_certs }}"
-        status_code: [200, 201,202,204]
+        status_code: [200, 201, 202, 204]
       register: create_server_response
+
+    - name: Check if server creation returned a status resource
+      set_fact:
+        server_creation_status_url: "{{ create_server_response.json.statusResource | default('') }}"
+      when: create_server_response.json.statusResource is defined
+
+    - name: Wait for server creation to complete
+      uri:
+        url: "https://{{ array_ip }}{{ server_creation_status_url }}"
+        method: GET
+        headers:
+          Accept: "application/json, text/plain, */*"
+          Accept-Language: "en"
+          Authorization: "Session {{ session_token }}"
+          Content-Type: "application/json"
+          X-Agent-Type: "SAE UI/{{ array_ip }}"
+        validate_certs: "{{ validate_certs }}"
+      register: server_creation_status
+      until: server_creation_status.json.data[0].progress == "completed"
+      retries: "{{ (max_wait_time / check_interval) | int }}"
+      delay: "{{ check_interval }}"
+      when: server_creation_status_url != ""
+
+    - name: Display server creation status
+      debug:
+        msg:
+          - "Server creation task completed"
+          - "Status: {{ server_creation_status.json.data[0].status | default('immediate') }}"
+          - "Progress: {{ server_creation_status.json.data[0].progress | default('completed') }}"
+      when: server_creation_status_url != ""
 
     - name: Display server creation result
       debug:
         msg: "Server '{{ server_nickname }}' created successfully"
 
-    - name: Wait for 30 seconds
+    - name: Wait for system to stabilize
       pause:
-        seconds: 30
+        seconds: 3
 
     - name: Get list of servers
       uri:
@@ -144,6 +177,36 @@
         status_code: [200, 201, 202, 204]
       register: hba_config_response
 
+    - name: Check if HBA configuration returned a status resource
+      set_fact:
+        hba_status_url: "{{ hba_config_response.json.statusResource | default('') }}"
+      when: hba_config_response.json.statusResource is defined
+
+    - name: Wait for HBA configuration to complete
+      uri:
+        url: "https://{{ array_ip }}{{ hba_status_url }}"
+        method: GET
+        headers:
+          Accept: "application/json, text/plain, */*"
+          Accept-Language: "en"
+          Authorization: "Session {{ session_token }}"
+          Content-Type: "application/json"
+          X-Agent-Type: "SAE UI/{{ array_ip }}"
+        validate_certs: "{{ validate_certs }}"
+      register: hba_status
+      until: hba_status.json.data[0].progress == "completed"
+      retries: "{{ (max_wait_time / check_interval) | int }}"
+      delay: "{{ check_interval }}"
+      when: hba_status_url != ""
+
+    - name: Display HBA configuration status
+      debug:
+        msg:
+          - "HBA configuration task completed"
+          - "Status: {{ hba_status.json.data[0].status | default('immediate') }}"
+          - "Progress: {{ hba_status.json.data[0].progress | default('completed') }}"
+      when: hba_status_url != ""
+
     - name: Display HBA configuration result
       debug:
         msg:
@@ -165,14 +228,41 @@
           iscsiName: "{{ item }}"
           portIds: "{{ port_ids }}"
         validate_certs: "{{ validate_certs }}"
-        status_code: [200, 201, 204,202]
+        status_code: [200, 201, 204, 202]
       loop: "{{ iqns }}"
       register: path_config_response
+
+    - name: Wait for path configuration tasks to complete
+      uri:
+        url: "https://{{ array_ip }}{{ item.json.statusResource }}"
+        method: GET
+        headers:
+          Accept: "application/json, text/plain, */*"
+          Accept-Language: "en"
+          Authorization: "Session {{ session_token }}"
+          Content-Type: "application/json"
+          X-Agent-Type: "SAE UI/{{ array_ip }}"
+        validate_certs: "{{ validate_certs }}"
+      register: path_status
+      until: path_status.json.data[0].progress == "completed"
+      retries: "{{ (max_wait_time / check_interval) | int }}"
+      delay: "{{ check_interval }}"
+      loop: "{{ path_config_response.results }}"
+      when: item.json.statusResource is defined
 
     - name: Display path configuration results
       debug:
         msg: "Successfully configured path for IQN: {{ item.item }}"
       loop: "{{ path_config_response.results }}"
+
+    - name: Display path configuration completion status
+      debug:
+        msg:
+          - "Path configuration task completed for IQN: {{ item.item.item }}"
+          - "Status: {{ item.json.data[0].status | default('immediate') }}"
+          - "Progress: {{ item.json.data[0].progress | default('completed') }}"
+      loop: "{{ path_status.results | default([]) }}"
+      when: path_status is defined and path_status.results is defined
 
     - name: Final server status check
       uri:
