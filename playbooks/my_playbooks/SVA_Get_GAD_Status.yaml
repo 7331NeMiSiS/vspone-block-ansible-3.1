@@ -1,0 +1,33 @@
+---
+####################################################################
+# Example :  Global Active Device Pair (GAD) Facts Playbook
+####################################################################
+- name: GAD Facts
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    secondary_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_secondary_storage_username }}"
+      password: "{{ vault_secondary_storage_secret }}"
+  tasks:
+    ####################################################################
+    # Task Name : Get all GAD pairs from all copy groups
+    ####################################################################
+    - name: Get all GAD pairs from all copy groups
+      hitachivantara.vspone_block.vsp.hv_gad_facts:
+        secondary_connection_info: "{{ secondary_connection_info }}"
+        connection_info: "{{ connection_info }}"
+        spec:
+      register: result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result
