@@ -15,10 +15,55 @@
       password: "{{ vault_storage_secret }}"
     secondary_connection_info:
       address: "{{ secondary_storage_address }}"
-      username: "{{ vault_secondary_storage_username }}"
-      password: "{{ vault_secondary_storage_secret }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+    # Server definitions
+    primary_servers:
+      - "william"
+    secondary_servers:
+      - "johann"
+    ticket: "srv109045"
+
+    # Port definitions (you can customize these as needed)
+    ports:
+      - "CL1-D"
+      - "CL2-D"
 
   tasks:
+    ####################################################################
+    # Task Name : Build dynamic hostgroup configurations
+    ####################################################################
+    - name: Build primary hostgroups list
+      ansible.builtin.set_fact:
+        primary_hostgroups: "{{ primary_hostgroups | default([]) + [
+          {
+            'name': item.0,
+            'port': item.1,
+            'enable_preferred_path': (item.0 in primary_servers)
+          }
+        ] }}"
+      loop: "{{ (primary_servers + secondary_servers) | product(ports) | list }}"
+
+    - name: Build secondary hostgroups list
+      ansible.builtin.set_fact:
+        secondary_hostgroups: "{{ secondary_hostgroups | default([]) + [
+          {
+            'name': item.0,
+            'port': item.1,
+            'enable_preferred_path': (item.0 in secondary_servers)
+          }
+        ] }}"
+      loop: "{{ (primary_servers + secondary_servers) | product(ports) | list }}"
+
+    - name: Debug primary hostgroups
+      ansible.builtin.debug:
+        var: primary_hostgroups
+
+    - name: Debug secondary hostgroups
+      ansible.builtin.debug:
+        var: secondary_hostgroups
+
     ####################################################################
     # Task Name : Create GAD pair with cross path server configuration
     ####################################################################
@@ -28,20 +73,12 @@
         secondary_connection_info: "{{ secondary_connection_info }}"
 
         spec:
-          copy_group_name: "gad_copy_group_name_3"
-          copy_pair_name: "gad_copy_pair_name_3"
-
+          copy_group_name: "{{ticket}}_copy_group"
+          copy_pair_name: "{{ticket}}_copy_pair"
           primary_volume_id: 0
           secondary_pool_id: 0
-          secondary_hostgroups:
-            - name: "test"
-              port: "CL1-A"
-              enable_preferred_path: true
-              lun_id: 1
-          primary_hostgroups:
-            - name: "test"
-              port: "CL1-A"
-              enable_preferred_path: false
+          primary_hostgroups: "{{ primary_hostgroups }}"
+          secondary_hostgroups: "{{ secondary_hostgroups }}"
           primary_resource_group_name: "rainier_VSM_RH20MH2_811111"
           quorum_disk_id: 1
           set_alua_mode: true
@@ -51,5 +88,3 @@
     - name: Debug the result variable
       ansible.builtin.debug:
         var: result
-
-
