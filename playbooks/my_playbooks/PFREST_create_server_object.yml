@@ -1,4 +1,3 @@
----
 - name: Configure Storage Array Server
   hosts: localhost
   gather_facts: false
@@ -68,7 +67,7 @@
           protocol: "{{ protocol }}"
           osType: "{{ os_type }}"
         validate_certs: "{{ validate_certs }}"
-        status_code: [200, 201]
+        status_code: [200, 201, 202]
       register: create_server_response
 
     - name: Display server creation result
@@ -132,7 +131,7 @@
           iscsiName: "{{ item }}"
           portIds: "{{ port_ids }}"
         validate_certs: "{{ validate_certs }}"
-        status_code: [200, 201, 204]
+        status_code: [200, 201, 204, 202]
       loop: "{{ iqns }}"
       register: path_config_response
 
