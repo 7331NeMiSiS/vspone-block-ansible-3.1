@@ -1,3 +1,4 @@
+---
 - name: Configure Storage Array Server
   hosts: localhost
   gather_facts: false
@@ -121,6 +122,11 @@
       debug:
         msg: "{{ server_details_response.json }}"
 
+    - name: Prepare HBA list
+      set_fact:
+        hba_list: "{{ hba_list | default([]) + [{'iscsiName': item}] }}"
+      loop: "{{ iqns }}"
+
     - name: Configure HBAs for server
       uri:
         url: "https://{{ array_ip }}/ConfigurationManager/simple/v1/objects/servers/{{ server_id }}/hbas"
@@ -133,14 +139,14 @@
           X-Agent-Type: "SAE UI/{{ array_ip }}"
         body_format: json
         body:
-          hbas: "{{ iqns | map('regex_replace', '^(.*)$', {'iscsiName': '\\1'}) | list }}"
+          hbas: "{{ hba_list }}"
         validate_certs: "{{ validate_certs }}"
         status_code: [200, 201, 202, 204]
       register: hba_config_response
 
     - name: Display HBA configuration result
       debug:
-        msg: 
+        msg:
           - "HBAs configured successfully for server '{{ server_nickname }}'"
           - "Configured IQNs: {{ iqns }}"
 
