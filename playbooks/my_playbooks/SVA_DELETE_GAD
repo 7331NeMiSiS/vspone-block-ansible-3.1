@@ -1,11 +1,10 @@
+---
 ####################################################################
 # Example :  Global Active Device Pair (GAD) Playbook
 ####################################################################
 - name: GAD - Global Active Device Pair Management
   hosts: localhost
   gather_facts: false
-  vars_files:
-
   vars:
     # Common connection info for all tasks
     connection_info:
