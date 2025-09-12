@@ -82,23 +82,25 @@
     ####################################################################
     # Task Name : Create GAD pair with cross path server configuration
     ####################################################################
-    - name: Create GAD-ISCSI pair
+    - name: Create GAD pair
       hitachivantara.vspone_block.vsp.hv_gad:
         connection_info: "{{ connection_info }}"
         secondary_connection_info: "{{ secondary_connection_info }}"
-
+        state: "present"
         spec:
-          copy_group_name: "{{ticket}}_group_name"
-          copy_pair_name: "{{ticket}}_pair_name"
-
+          copy_group_name: "{{ticket}}_copy_group"
+          copy_pair_name: "{{ticket}}_copy_pair"
           primary_volume_id: "{{ldev_result.volume.ldev_id}}"
           secondary_pool_id: 0
-          secondary_iscsi_targets: "{{secondary_hostgroups}}"
+          primary_iscsi_targets: "{{ primary_hostgroups }}"
+          secondary_iscsi_targets: "{{ secondary_hostgroups }}"
+          primary_resource_group_name: "rainier_VSM_RH20MH2_811111"
           quorum_disk_id: 1
-
+          set_alua_mode: true
+          allocate_new_consistency_group: false
+          mu_number: 0
       register: result
 
     - name: Debug the result variable
       ansible.builtin.debug:
         var: result
-
