@@ -18,6 +18,7 @@
       username: "{{ vault_storage_username }}"
       password: "{{ vault_storage_secret }}"
     primary_volume_size: 10
+    volume_name: "william"
     primary_servers:
       - "william"
     secondary_servers:
@@ -37,6 +38,7 @@
         state: "present"
         spec:
           pool_id: 0
+          name: "{{volume_name}}"
           size: "{{primary_volume_size}}GB"
           capacity_saving: "compression_deduplication"
           data_reduction_share: true
