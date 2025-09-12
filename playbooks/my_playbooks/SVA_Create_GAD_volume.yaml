@@ -19,9 +19,9 @@
       password: "{{ vault_storage_secret }}"
     primary_volume_size: 10
     primary_servers:
-      - "william"
+      - "daniel"
     secondary_servers:
-      - "johann"
+      - "michel"
     ticket: "srv109045"
     ports:
       - "CL1-D"
@@ -111,7 +111,8 @@
           copy_pair_name: "{{ticket}}_copy_pair"
           primary_volume_id: "{{ldev_result.volume.ldev_id}}"
           secondary_pool_id: 0
-          secondary_iscsi_targets: "{{ secondary_hostgroups }}"
+          primary_hostgroups: "{{primary_hostgroups}}"
+          secondary_hostgroups: "{{secondary_hostgroups}}"
           primary_resource_group_name: "rainier_VSM_RH20MH2_811111"
           quorum_disk_id: 1
           set_alua_mode: true
