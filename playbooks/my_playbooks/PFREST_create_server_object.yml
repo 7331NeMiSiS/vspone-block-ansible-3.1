@@ -11,8 +11,8 @@
     os_type: "VMware"
     protocol: "iSCSI"
     port_ids:
-      - "CL1-D"
-      - "CL2-D"
+      - "CL1-C"
+      - "CL2-C"
     iqns:
       - "iqn.1992-01.com.company:server"
     authentication_timeout: 600
