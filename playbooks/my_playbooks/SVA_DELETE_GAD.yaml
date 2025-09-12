@@ -17,9 +17,7 @@
       password: "{{ vault_storage_secret }}"
     copy_group_name: "srv109045_copy_group"
     primary_ldev_id: 3
-
   tasks:
-
     ####################################################################
     # Task Name : Delete GAD pair
     ####################################################################
@@ -27,14 +25,12 @@
       hitachivantara.vspone_block.vsp.hv_gad:
         connection_info: "{{ connection_info }}"
         secondary_connection_info: "{{ secondary_connection_info }}"
-
         state: "absent"
         spec:
           copy_group_name: "{{copy_group_name}}"
           primary_volume_id: "{{primary_ldev_id}}"
           should_delete_svol: true
       register: result
-
     - name: Debug the result variable
       ansible.builtin.debug:
         var: result
