@@ -46,6 +46,24 @@
       ansible.builtin.debug:
         var: ldev_result
 
+    ######################################################################################
+    # Task Name : Add the following resources to an existing Resource Group by ID
+    # Resources : ldevs, ports, host groups, nvm subsystem ids
+    ######################################################################################
+    - name: Add the  resources to an existing Resource Group by ID
+      hitachivantara.vspone_block.vsp.hv_resource_group:
+        connection_info: "{{ connection_info }}"
+        spec:
+          state: "add_resource"
+          id: 1
+          ldevs: "{{ldev_result.volume.ldev_id}}"
+
+      register: result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result
+
     ####################################################################
     # Task Name : Build dynamic hostgroup configurations
     ####################################################################
