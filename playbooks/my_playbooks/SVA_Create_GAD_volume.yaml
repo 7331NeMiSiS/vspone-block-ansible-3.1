@@ -24,8 +24,8 @@
       - "johann"
     ticket: "srv109045"
     ports:
-      - "CL1-C"
-      - "CL2-C"
+      - "CL1-D"
+      - "CL2-D"
 
   tasks:
     ###########################################################################
@@ -45,6 +45,25 @@
     - name: Debug the result variable
       ansible.builtin.debug:
         var: ldev_result
+    
+    ####################################################################
+    # Task Name : Present volume to primary server hostgroups
+    ####################################################################
+    - name: Present volume to primary server hostgroups
+      hitachivantara.vspone_block.vsp.hv_hg:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          state: "present_ldev"
+          name: "{{ item.0 }}"
+          port: "{{ item.1 }}"
+          ldevs: ["{{ ldev_result.volume.ldev_id }}"]
+      loop: "{{ primary_servers | product(ports) | list }}"
+      register: presentation_result
+
+    - name: Debug volume presentation results
+      ansible.builtin.debug:
+        var: presentation_result
 
     ####################################################################
     # Task Name : Build dynamic hostgroup configurations
