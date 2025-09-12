@@ -92,8 +92,8 @@
           copy_pair_name: "{{ticket}}_copy_pair"
           primary_volume_id: "{{ldev_result.volume.ldev_id}}"
           secondary_pool_id: 0
-          primary_hostgroups: "{{ primary_hostgroups }}"
-          secondary_hostgroups: "{{ secondary_hostgroups }}"
+          primary_iscsi_targets: "{{ primary_hostgroups }}"
+          secondary_iscsi_targets: "{{ secondary_hostgroups }}"
           primary_resource_group_name: "rainier_VSM_RH20MH2_811111"
           quorum_disk_id: 1
           set_alua_mode: true
