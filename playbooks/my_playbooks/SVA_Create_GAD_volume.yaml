@@ -60,6 +60,23 @@
           id: 1
           ldevs: ["{{ ldev_result.volume.ldev_id }}"]
 
+    ###########################################################################
+    # Task Name : Assign Virtual LDev ID
+    ###########################################################################
+    - name: Assign the virtual ldev for a volume.
+      hitachivantara.vspone_block.vsp.hv_ldev:
+        connection_info: "{{ connection_info }}"
+        state: "assign_virtual_ldev"
+        spec:
+          ldev_id: "{{ ldev_result.volume.ldev_id }}"
+          vldev_id: "{{ ldev_result.volume.ldev_id }}"
+
+      register: result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result
+
 
     ####################################################################
     # Task Name : Present volume to primary server hostgroups
