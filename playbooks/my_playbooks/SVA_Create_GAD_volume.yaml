@@ -86,6 +86,7 @@
       hitachivantara.vspone_block.vsp.hv_gad:
         connection_info: "{{ connection_info }}"
         secondary_connection_info: "{{ secondary_connection_info }}"
+        state: "present"
         spec:
           copy_group_name: "{{ticket}}_copy_group"
           copy_pair_name: "{{ticket}}_copy_pair"
