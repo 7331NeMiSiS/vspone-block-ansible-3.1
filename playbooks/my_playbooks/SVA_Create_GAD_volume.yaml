@@ -45,7 +45,20 @@
     - name: Debug the result variable
       ansible.builtin.debug:
         var: ldev_result
-    
+
+
+    ####################################################################
+    # Task Name : Add created ldev to resource groups
+    ####################################################################
+    - name: Add resources to an existing Resource Group by ID
+      hitachivantara.vspone_block.vsp.hv_resource_group:
+        connection_info: "{{ connection_info }}"
+        spec:
+          state: "add_resource"
+          id: 1
+          ldevs: ["{{ ldev_result.volume.ldev_id }}"]
+
+
     ####################################################################
     # Task Name : Present volume to primary server hostgroups
     ####################################################################
