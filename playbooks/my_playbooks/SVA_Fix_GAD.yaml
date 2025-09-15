@@ -1,0 +1,55 @@
+---
+####################################################################
+# Example :  Global Active Device Pair (GAD) Playbook
+####################################################################
+- name: GAD - Global Active Device Pair Management
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    secondary_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+
+  tasks:
+    ####################################################################
+    # Task Name : Get all GAD pairs from all copy groups
+    ####################################################################
+    - name: Get all GAD pairs from all copy groups
+      hitachivantara.vspone_block.vsp.hv_gad_facts:
+        secondary_connection_info: "{{ secondary_connection_info }}"
+        connection_info: "{{ connection_info }}"
+        spec:
+      register: gad_pair
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: gad_pair
+
+
+
+    ####################################################################
+    # Task Name: Resync GAD pairs (Loop through all pairs)
+    ####################################################################
+    - name: Resync GAD pair - {{ item.copy_pair_name }}
+      hitachivantara.vspone_block.vsp.hv_gad:
+        connection_info: "{{ connection_info }}"
+        secondary_connection_info: "{{ secondary_connection_info }}"
+        state: "resync"
+        spec:
+          copy_group_name: "{{ item.copy_group_name }}"
+          copy_pair_name: "{{ item.copy_pair_name }}"
+          local_device_group_name: "{{ item.local_device_group_name }}"
+          remote_device_group_name: "{{ item.remote_device_group_name }}"
+      register: result
+      loop: "{{ gad_pair }}"
+      loop_control:
+        label: "Processing {{ item.copy_pair_name }}"
