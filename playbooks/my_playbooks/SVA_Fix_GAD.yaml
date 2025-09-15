@@ -50,6 +50,6 @@
           local_device_group_name: "{{ item.local_device_group_name }}"
           remote_device_group_name: "{{ item.remote_device_group_name }}"
       register: result
-      loop: "{{ gad_pair }}"
+      loop: "{{ gad_pair.ansible_facts.gad_pair }}"
       loop_control:
         label: "Processing {{ item.copy_pair_name }}"
