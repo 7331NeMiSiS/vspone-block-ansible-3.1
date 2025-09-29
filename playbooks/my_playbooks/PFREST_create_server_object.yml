@@ -11,13 +11,13 @@
     os_type: "VMware"
     protocol: "iSCSI"
     port_ids:
-      - "CL1-D"
-      - "CL2-D"
+      - "CL1-C"
+      - "CL2-C"
     iqns:
       - "iqn.1992-01.com.company:server"
     authentication_timeout: 600
     validate_certs: false
-    target_resource_group_id: 5
+    target_resource_group_id: 3
     # Task completion checking settings
     max_wait_time: 300  # Maximum wait time in seconds (5 minutes)
     check_interval: 5   # Check every 5 seconds
