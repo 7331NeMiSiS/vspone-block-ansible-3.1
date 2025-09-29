@@ -25,8 +25,8 @@
       - "johann"
     ticket: "srv109045"
     ports:
-      - "CL1-D"
-      - "CL2-D"
+      - "CL1-C"
+      - "CL2-C"
 
   tasks:
     ###########################################################################
@@ -57,7 +57,7 @@
         connection_info: "{{ connection_info }}"
         spec:
           state: "add_resource"
-          id: 5
+          id: 3
           ldevs: ["{{ ldev_result.volume.ldev_id }}"]
 
     ###########################################################################
@@ -164,8 +164,8 @@
           secondary_pool_id: 0
           primary_hostgroups: "{{ primary_hostgroups }}"
           secondary_hostgroups: "{{ secondary_hostgroups }}"
-          primary_resource_group_name: "rainier_VSM_RH20ML2_811111"
-          quorum_disk_id: 10
+          primary_resource_group_name: "HDRS-Gateway"
+          quorum_disk_id: 0
           set_alua_mode: true
           allocate_new_consistency_group: false
       register: result
