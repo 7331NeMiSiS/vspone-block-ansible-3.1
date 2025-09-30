@@ -92,6 +92,7 @@
           ldevs: ["{{ ldev_result.volume.ldev_id }}"]
       loop: "{{ primary_servers | product(ports) | list }}"
       register: presentation_result
+      ignore_errors: True
 
     - name: Debug volume presentation results
       ansible.builtin.debug:
@@ -111,6 +112,7 @@
           ldevs: [ "{{ ldev_result.volume.ldev_id }}" ]
       loop: "{{ secondary_servers | product(ports) | list }}"
       register: presentation_result
+      ignore_errors: True
 
     - name: Debug volume presentation results
       ansible.builtin.debug:
