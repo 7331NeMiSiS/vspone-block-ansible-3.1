@@ -36,42 +36,6 @@
 
   tasks:
     ###########################################################################
-    # Task Name : Create session with primary storage array
-    ###########################################################################
-    - name: Create session with primary storage array
-      uri:
-        url: "https://{{ storage_address }}/ConfigurationManager/v1/objects/sessions"
-        method: POST
-        headers:
-          Accept: "application/json, text/plain, */*"
-          Accept-Language: "en"
-          Content-Type: "application/json"
-          Cache-Control: "no-store"
-          If-Modified-Since: "0"
-          X-Client-Type: "Colon UI"
-        body_format: json
-        body:
-          authenticationTimeout: "{{ authentication_timeout }}"
-        user: "{{ vault_storage_username }}"
-        password: "{{ vault_storage_secret }}"
-        force_basic_auth: true
-        validate_certs: "{{ validate_certs }}"
-        status_code: [200, 201, 202]
-      register: session_response
-
-    - name: Extract session token and ID
-      set_fact:
-        session_token: "{{ session_response.json.token }}"
-        session_id: "{{ session_response.json.sessionId }}"
-
-    - name: Display session information
-      debug:
-        msg:
-          - "Session created successfully"
-          - "Token: {{ session_token }}"
-          - "Session ID: {{ session_id }}"
-
-    ###########################################################################
     # Task Name : Create ldev with capacity saving and data_reduction_share
     ###########################################################################
     - name: Create ldev with capacity saving and data_reduction_share
@@ -264,21 +228,7 @@
         status_code: [ 200, 204, 404 ]
       when: session_token is defined
       ignore_errors: true
-    ###########################################################################
-    # Task Name : Assign Virtual LDev ID
-    ###########################################################################
-    - name: Assign the virtual ldev for a volume.
-      hitachivantara.vspone_block.vsp.hv_ldev:
-        connection_info: "{{ connection_info }}"
-        state: "assign_virtual_ldev"
-        spec:
-          ldev_id: "{{ ldev_result.volume.ldev_id }}"
-          vldev_id: "{{ ldev_result.volume.ldev_id }}"
-      register: result
 
-    - name: Debug the result variable
-      ansible.builtin.debug:
-        var: result
 
     ####################################################################
     # Task Name : Present volume to primary server hostgroups
