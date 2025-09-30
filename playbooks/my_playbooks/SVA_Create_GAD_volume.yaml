@@ -101,11 +101,10 @@
           Accept-Language: "en"
           Authorization: "Session {{ session_token }}"
           Content-Type: "application/json"
-          X-Agent-Type: "SAE UI/{{ storage_address }}"
         body_format: json
         body:
           parameters:
-            virtualLdevId: ["{{ ldev_result.volume.ldev_id }}"]
+            virtualLdevId: "{{ ldev_result.volume.ldev_id }}"
         validate_certs: "{{ validate_certs }}"
         status_code: [200, 201, 202, 204, 412]
       register: remove_resource_response
@@ -139,7 +138,6 @@
           Accept-Language: "en"
           Authorization: "Session {{ session_token }}"
           Content-Type: "application/json"
-          X-Agent-Type: "SAE UI/{{ storage_address }}"
         body_format: json
         body:
           parameters:
@@ -165,7 +163,6 @@
           Accept-Language: "en"
           Authorization: "Session {{ session_token }}"
           Content-Type: "application/json"
-          X-Agent-Type: "SAE UI/{{ storage_address }}"
         validate_certs: "{{ validate_certs }}"
       register: resource_group_status
       until: resource_group_status.status == 200
@@ -190,11 +187,10 @@
           Accept-Language: "en"
           Authorization: "Session {{ session_token }}"
           Content-Type: "application/json"
-          X-Agent-Type: "SAE UI/{{ storage_address }}"
         body_format: json
         body:
           parameters:
-            virtualLdevId: [ "{{ ldev_result.volume.ldev_id }}" ]
+            virtualLdevId: "{{ ldev_result.volume.ldev_id }}"
         validate_certs: "{{ validate_certs }}"
         status_code: [ 200, 201, 202, 204, 412 ]
       register: assign_resource_response
@@ -208,7 +204,6 @@
           Accept-Language: "en"
           Authorization: "Session {{ session_token }}"
           Content-Type: "application/json"
-          X-Agent-Type: "SAE UI/{{ storage_address }}"
         validate_certs: "{{ validate_certs }}"
       register: resource_group_status
       until: resource_group_status.status == 200
