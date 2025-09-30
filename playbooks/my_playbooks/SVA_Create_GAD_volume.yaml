@@ -306,6 +306,9 @@
     - name: Debug secondary hostgroups
       ansible.builtin.debug:
         var: secondary_hostgroups
+    - name: Wait for system to stabilize
+      pause:
+        seconds: 3
 
     ####################################################################
     # Task Name : Create GAD pair with cross path server configuration
