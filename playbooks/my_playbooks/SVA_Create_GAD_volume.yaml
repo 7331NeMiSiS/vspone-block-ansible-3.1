@@ -107,6 +107,14 @@
         body:
           parameters:
             ldevIds: ["{{ ldev_result.volume.ldev_id }}"]
+            "startLdevId": null
+            "endLdevId": null
+            "parityGroupIds": null
+            "externalParityGroupIds": null
+            "portIds": null
+            "hostGroupIds": null
+            "nvmSubsystemIds": null
+            "canRunIfResourceLocked": null
         validate_certs: "{{ validate_certs }}"
         status_code: [200, 201, 202, 204, 412]
       register: add_resource_response
