@@ -93,6 +93,52 @@
     ####################################################################
     # Task Name : Add created ldev to resource groups via REST API
     ####################################################################
+    - name: Remove ldev to resource group via REST API
+      uri:
+        url: "https://{{ storage_address }}/ConfigurationManager/v1/objects/resource-groups/{{ resource_group_id }}/actions/remove-resource/invoke"
+        method: POST
+        headers:
+          Accept: "application/json, text/plain, */*"
+          Accept-Language: "en"
+          Authorization: "Session {{ session_token }}"
+          Content-Type: "application/json"
+          X-Agent-Type: "SAE UI/{{ storage_address }}"
+        body_format: json
+        body:
+          parameters:
+            ldevIds: ["{{ ldev_result.volume.ldev_id }}"]
+            "startLdevId": null
+            "endLdevId": null
+            "parityGroupIds": null
+            "externalParityGroupIds": null
+            "portIds": null
+            "hostGroupIds": null
+            "nvmSubsystemIds": null
+            "canRunIfResourceLocked": null
+        validate_certs: "{{ validate_certs }}"
+        status_code: [200, 201, 202, 204, 412]
+      register: remove_resource_response
+
+    - name: Wait for resource group assignment to complete
+      uri:
+        url: "https://{{ storage_address }}{{ add_resource_response.json.affectedResources[0] }}"
+        method: GET
+        headers:
+          Accept: "application/json, text/plain, */*"
+          Accept-Language: "en"
+          Authorization: "Session {{ session_token }}"
+          Content-Type: "application/json"
+          X-Agent-Type: "SAE UI/{{ storage_address }}"
+        validate_certs: "{{ validate_certs }}"
+      register: resource_group_status
+      until: resource_group_status.status == 200
+      retries: "{{ (max_wait_time / check_interval) | int }}"
+      delay: "{{ check_interval }}"
+      when: remove_resource_response.json.affectedResources is defined
+
+    ####################################################################
+    # Task Name : Add created ldev to resource groups via REST API
+    ####################################################################
     - name: Add ldev to resource group via REST API
       uri:
         url: "https://{{ storage_address }}/ConfigurationManager/v1/objects/resource-groups/{{ resource_group_id }}/actions/add-resource/invoke"
