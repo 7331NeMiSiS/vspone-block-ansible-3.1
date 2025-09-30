@@ -108,6 +108,9 @@
         validate_certs: "{{ validate_certs }}"
         status_code: [200, 201, 202, 204, 412]
       register: remove_resource_response
+    - name: Wait for system to stabilize
+      pause:
+        seconds: 2
 
     - name: Wait for resource group assignment to complete
       uri:
@@ -153,6 +156,9 @@
         validate_certs: "{{ validate_certs }}"
         status_code: [200, 201, 202, 204, 412]
       register: add_resource_response
+    - name: Wait for system to stabilize
+      pause:
+        seconds: 3
 
     - name: Wait for resource group assignment to complete
       uri:
@@ -194,6 +200,9 @@
         validate_certs: "{{ validate_certs }}"
         status_code: [ 200, 201, 202, 204, 412 ]
       register: assign_resource_response
+    - name: Wait for system to stabilize
+      pause:
+        seconds: 3
 
     - name: Wait for resource group assignment to complete
       uri:
