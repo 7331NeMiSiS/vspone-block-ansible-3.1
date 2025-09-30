@@ -27,8 +27,50 @@
     ports:
       - "CL1-C"
       - "CL2-C"
+    # REST API settings
+    resource_group_id: 3
+    authentication_timeout: 600
+    validate_certs: false
+    max_wait_time: 300
+    check_interval: 5
 
   tasks:
+    ###########################################################################
+    # Task Name : Create session with primary storage array
+    ###########################################################################
+    - name: Create session with primary storage array
+      uri:
+        url: "https://{{ storage_address }}/ConfigurationManager/v1/objects/sessions"
+        method: POST
+        headers:
+          Accept: "application/json, text/plain, */*"
+          Accept-Language: "en"
+          Content-Type: "application/json"
+          Cache-Control: "no-store"
+          If-Modified-Since: "0"
+          X-Client-Type: "Colon UI"
+        body_format: json
+        body:
+          authenticationTimeout: "{{ authentication_timeout }}"
+        user: "{{ vault_storage_username }}"
+        password: "{{ vault_storage_secret }}"
+        force_basic_auth: true
+        validate_certs: "{{ validate_certs }}"
+        status_code: [200, 201, 202]
+      register: session_response
+
+    - name: Extract session token and ID
+      set_fact:
+        session_token: "{{ session_response.json.token }}"
+        session_id: "{{ session_response.json.sessionId }}"
+
+    - name: Display session information
+      debug:
+        msg:
+          - "Session created successfully"
+          - "Token: {{ session_token }}"
+          - "Session ID: {{ session_id }}"
+
     ###########################################################################
     # Task Name : Create ldev with capacity saving and data_reduction_share
     ###########################################################################
@@ -48,17 +90,49 @@
       ansible.builtin.debug:
         var: ldev_result
 
+    ####################################################################
+    # Task Name : Add created ldev to resource groups via REST API
+    ####################################################################
+    - name: Add ldev to resource group via REST API
+      uri:
+        url: "https://{{ storage_address }}/ConfigurationManager/v1/objects/resource-groups/{{ resource_group_id }}/actions/add-resource/invoke"
+        method: POST
+        headers:
+          Accept: "application/json, text/plain, */*"
+          Accept-Language: "en"
+          Authorization: "Session {{ session_token }}"
+          Content-Type: "application/json"
+          X-Agent-Type: "SAE UI/{{ storage_address }}"
+        body_format: json
+        body:
+          parameters:
+            ldevIds: ["{{ ldev_result.volume.ldev_id }}"]
+        validate_certs: "{{ validate_certs }}"
+        status_code: [200, 201, 202, 204, 412]
+      register: add_resource_response
 
-    ####################################################################
-    # Task Name : Add created ldev to resource groups
-    ####################################################################
-    - name: Add resources to an existing Resource Group by ID
-      hitachivantara.vspone_block.vsp.hv_resource_group:
-        connection_info: "{{ connection_info }}"
-        spec:
-          state: "add_resource"
-          id: 3
-          ldevs: ["{{ ldev_result.volume.ldev_id }}"]
+    - name: Wait for resource group assignment to complete
+      uri:
+        url: "https://{{ storage_address }}{{ add_resource_response.json.affectedResources[0] }}"
+        method: GET
+        headers:
+          Accept: "application/json, text/plain, */*"
+          Accept-Language: "en"
+          Authorization: "Session {{ session_token }}"
+          Content-Type: "application/json"
+          X-Agent-Type: "SAE UI/{{ storage_address }}"
+        validate_certs: "{{ validate_certs }}"
+      register: resource_group_status
+      until: resource_group_status.status == 200
+      retries: "{{ (max_wait_time / check_interval) | int }}"
+      delay: "{{ check_interval }}"
+      when: add_resource_response.json.affectedResources is defined
+
+    - name: Display resource group assignment result
+      debug:
+        msg:
+          - "{{ 'Successfully added' if add_resource_response.status in [200, 201, 202, 204] else 'Confirmed already present:' }} LDEV {{ ldev_result.volume.ldev_id }} {{ 'to' if add_resource_response.status in [200, 201, 202, 204] else 'in' }} resource group {{ resource_group_id }}"
+          - "{{ 'Status: Added to resource group' if add_resource_response.status in [200, 201, 202, 204] else 'Status: Already in resource group (no action needed)' }}"
 
     ###########################################################################
     # Task Name : Assign Virtual LDev ID
@@ -70,13 +144,11 @@
         spec:
           ldev_id: "{{ ldev_result.volume.ldev_id }}"
           vldev_id: "{{ ldev_result.volume.ldev_id }}"
-
       register: result
 
     - name: Debug the result variable
       ansible.builtin.debug:
         var: result
-
 
     ####################################################################
     # Task Name : Present volume to primary server hostgroups
@@ -175,3 +247,17 @@
     - name: Debug the result variable
       ansible.builtin.debug:
         var: result
+
+    ####################################################################
+    # Task Name : Cleanup session
+    ####################################################################
+    - name: Delete session with primary storage array
+      uri:
+        url: "https://{{ storage_address }}/ConfigurationManager/v1/objects/sessions/{{ session_id }}"
+        method: DELETE
+        headers:
+          Authorization: "Session {{ session_token }}"
+        validate_certs: "{{ validate_certs }}"
+        status_code: [200, 204, 404]
+      when: session_token is defined
+      ignore_errors: true
