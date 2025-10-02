@@ -1,0 +1,277 @@
+---
+####################################################################
+# Example :  Global Active Device Pair (GAD) Playbook
+####################################################################
+- name: GAD - Global Active Device Pair Management
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    secondary_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    primary_volume_size: 10
+    volume_name: "william"
+    primary_servers:
+      - "william"
+    secondary_servers:
+      - "johann"
+    ticket: "srv109045"
+    ports:
+      - "CL1-C"
+      - "CL2-C"
+    # REST API settings
+    resource_group_id: 3
+    authentication_timeout: 600
+    validate_certs: false
+    max_wait_time: 300
+    check_interval: 5
+
+  tasks:
+    ###########################################################################
+    # Task Name : Create ldev with capacity saving and data_reduction_share
+    ###########################################################################
+    - name: Create ldev with capacity saving and data_reduction_share
+      hitachivantara.vspone_block.vsp.hv_ldev:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          pool_id: 0
+          name: "{{volume_name}}"
+          size: "{{primary_volume_size}}GB"
+          capacity_saving: "compression_deduplication"
+          data_reduction_share: true
+      register: ldev_result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: ldev_result
+    ###########################################################################
+    # Task Name : Create session with primary storage array
+    ###########################################################################
+    - name: Create session with primary storage array
+      uri:
+        url: "https://{{ storage_address }}/ConfigurationManager/v1/objects/sessions"
+        method: POST
+        headers:
+          Accept: "application/json, text/plain, */*"
+          Accept-Language: "en"
+          Content-Type: "application/json"
+          Cache-Control: "no-store"
+          If-Modified-Since: "0"
+          X-Client-Type: "Colon UI"
+        body_format: json
+        body:
+          authenticationTimeout: "{{ authentication_timeout }}"
+        user: "{{ vault_storage_username }}"
+        password: "{{ vault_storage_secret }}"
+        force_basic_auth: true
+        validate_certs: "{{ validate_certs }}"
+        status_code: [ 200, 201, 202 ]
+      register: session_response
+
+    - name: Extract session token and ID
+      set_fact:
+        session_token: "{{ session_response.json.token }}"
+        session_id: "{{ session_response.json.sessionId }}"
+
+    - name: Display session information
+      debug:
+        msg:
+          - "Session created successfully"
+          - "Token: {{ session_token }}"
+          - "Session ID: {{ session_id }}"
+
+    ####################################################################
+    # Task Name : Add created ldev to resource groups via REST API
+    ####################################################################
+    - name: Unassign ldev to resource group via REST API
+      uri:
+        url: "https://{{ storage_address }}/ConfigurationManager/v1/objects/ldevs/{{ ldev_result.volume.ldev_id }}/actions/unassign-virtual-ldevid/invoke"
+        method: POST
+        headers:
+          Accept: "application/json, text/plain, */*"
+          Accept-Language: "en"
+          Authorization: "Session {{ session_token }}"
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          parameters:
+            virtualLdevId: "{{ ldev_result.volume.ldev_id }}"
+        validate_certs: "{{ validate_certs }}"
+        status_code: [200, 201, 202, 204, 412]
+      register: remove_resource_response
+    - name: Wait for system to stabilize
+      pause:
+        seconds: 2
+
+    - name: Wait for resource group assignment to complete
+      uri:
+        url: "https://{{ storage_address }}{{ add_resource_response.json.affectedResources[0] }}"
+        method: GET
+        headers:
+          Accept: "application/json, text/plain, */*"
+          Accept-Language: "en"
+          Authorization: "Session {{ session_token }}"
+          Content-Type: "application/json"
+          X-Agent-Type: "SAE UI/{{ storage_address }}"
+        validate_certs: "{{ validate_certs }}"
+      register: resource_group_status
+      until: resource_group_status.status == 200
+      retries: "{{ (max_wait_time / check_interval) | int }}"
+      delay: "{{ check_interval }}"
+      when: remove_resource_response.json.affectedResources is defined
+
+    ####################################################################
+    # Task Name : Add created ldev to resource groups via REST API
+    ####################################################################
+    - name: Add ldev to resource group via REST API
+      uri:
+        url: "https://{{ storage_address }}/ConfigurationManager/v1/objects/resource-groups/{{ resource_group_id }}/actions/add-resource/invoke"
+        method: POST
+        headers:
+          Accept: "application/json, text/plain, */*"
+          Accept-Language: "en"
+          Authorization: "Session {{ session_token }}"
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          parameters:
+            ldevIds: ["{{ ldev_result.volume.ldev_id }}"]
+            "startLdevId": null
+            "endLdevId": null
+            "parityGroupIds": null
+            "externalParityGroupIds": null
+            "portIds": null
+            "hostGroupIds": null
+            "nvmSubsystemIds": null
+            "canRunIfResourceLocked": null
+        validate_certs: "{{ validate_certs }}"
+        status_code: [200, 201, 202, 204, 412]
+      register: add_resource_response
+    - name: Wait for system to stabilize
+      pause:
+        seconds: 3
+
+    - name: Wait for resource group assignment to complete
+      uri:
+        url: "https://{{ storage_address }}{{ add_resource_response.json.affectedResources[0] }}"
+        method: GET
+        headers:
+          Accept: "application/json, text/plain, */*"
+          Accept-Language: "en"
+          Authorization: "Session {{ session_token }}"
+          Content-Type: "application/json"
+        validate_certs: "{{ validate_certs }}"
+      register: resource_group_status
+      until: resource_group_status.status == 200
+      retries: "{{ (max_wait_time / check_interval) | int }}"
+      delay: "{{ check_interval }}"
+      when: add_resource_response.json.affectedResources is defined
+
+    - name: Display resource group assignment result
+      debug:
+        msg:
+          - "{{ 'Successfully added' if add_resource_response.status in [200, 201, 202, 204] else 'Confirmed already present:' }} LDEV {{ ldev_result.volume.ldev_id }} {{ 'to' if add_resource_response.status in [200, 201, 202, 204] else 'in' }} resource group {{ resource_group_id }}"
+          - "{{ 'Status: Added to resource group' if add_resource_response.status in [200, 201, 202, 204] else 'Status: Already in resource group (no action needed)' }}"
+    ####################################################################
+    # Task Name : Add created ldev to resource groups via REST API
+    ####################################################################
+    - name: Assign ldev to resource group via REST API
+      uri:
+        url: "https://{{ storage_address }}/ConfigurationManager/v1/objects/ldevs/{{ ldev_result.volume.ldev_id }}/actions/assign-virtual-ldevid/invoke"
+        method: POST
+        headers:
+          Accept: "application/json, text/plain, */*"
+          Accept-Language: "en"
+          Authorization: "Session {{ session_token }}"
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          parameters:
+            virtualLdevId: "{{ ldev_result.volume.ldev_id }}"
+        validate_certs: "{{ validate_certs }}"
+        status_code: [ 200, 201, 202, 204, 412 ]
+      register: assign_resource_response
+    - name: Wait for system to stabilize
+      pause:
+        seconds: 3
+
+    - name: Wait for resource group assignment to complete
+      uri:
+        url: "https://{{ storage_address }}{{ add_resource_response.json.affectedResources[0] }}"
+        method: GET
+        headers:
+          Accept: "application/json, text/plain, */*"
+          Accept-Language: "en"
+          Authorization: "Session {{ session_token }}"
+          Content-Type: "application/json"
+        validate_certs: "{{ validate_certs }}"
+      register: resource_group_status
+      until: resource_group_status.status == 200
+      retries: "{{ (max_wait_time / check_interval) | int }}"
+      delay: "{{ check_interval }}"
+      when: assign_resource_response.json.affectedResources is defined
+    ####################################################################
+    # Task Name : Cleanup session
+    ####################################################################
+    - name: Delete session with primary storage array
+      uri:
+        url: "https://{{ storage_address }}/ConfigurationManager/v1/objects/sessions/{{ session_id }}"
+        method: DELETE
+        headers:
+          Authorization: "Session {{ session_token }}"
+        validate_certs: "{{ validate_certs }}"
+        status_code: [ 200, 204, 404 ]
+      when: session_token is defined
+      ignore_errors: true
+
+
+    ####################################################################
+    # Task Name : Present volume to primary server hostgroups
+    ####################################################################
+    - name: Present volume to primary server hostgroups
+      hitachivantara.vspone_block.vsp.hv_hg:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          state: "present_ldev"
+          name: "{{ item.0 }}"
+          port: "{{ item.1 }}"
+          ldevs: ["{{ ldev_result.volume.ldev_id }}"]
+      loop: "{{ primary_servers | product(ports) | list }}"
+      register: presentation_result
+      ignore_errors: True
+
+    - name: Debug volume presentation results
+      ansible.builtin.debug:
+        var: presentation_result
+
+    ####################################################################
+    # Task Name : Present volume to secondary server hostgroups
+    ####################################################################
+    - name: Present volume to secondary server hostgroups
+      hitachivantara.vspone_block.vsp.hv_hg:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          state: "present_ldev"
+          name: "{{ item.0 }}"
+          port: "{{ item.1 }}"
+          ldevs: [ "{{ ldev_result.volume.ldev_id }}" ]
+      loop: "{{ secondary_servers | product(ports) | list }}"
+      register: presentation_result
+      ignore_errors: True
+
+    - name: Debug volume presentation results
+      ansible.builtin.debug:
+        var: presentation_result
+
+
