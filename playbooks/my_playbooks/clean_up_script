@@ -1,17 +1,15 @@
 - name: Clean Up
-  hosts: localhost
+  hosts: storage_arrays
   gather_facts: false
+  delegate_to: localhost
 
   vars:
     connection_info:
-      address: "{{ip}}"
-      username: "{{username}}"
-      password: "{{password}}"
+      address: "{{ ip }}"
+      username: "{{ username }}"
+      password: "{{ password }}"
 
   tasks:
-      ####################################################################
-      # Task Name : Get ldev with same name
-      ####################################################################
     - name: Get ldev with same name
       hitachivantara.vspone_block.vsp.hv_ldev_facts:
         connection_info: "{{ connection_info }}"
@@ -23,25 +21,11 @@
       ansible.builtin.debug:
         var: result
 
-
-    #########################################################################################################
-    # Task Name : Force delete ldev removes the ldev from hostgroups, iscsi targets or NVMe subsystem namespace
-    #########################################################################################################
-#    - name: Force delete ldev removes the ldev from hostgroups, iscsi targets or NVMe subsystem namespace
-#      hitachivantara.vspone_block.vsp.hv_ldev:
-#        connection_info: "{{ connection_info }}"
-#        state: "absent"
-#        spec:
-#          ldev_id: 345
-#          force: true
-#      register: result
-
-
-    - name: Force delete ldev removes the ldev from hostgroups, iscsi targets or NVMe subsystem namespace
+    - name: Force delete ldev
       hitachivantara.vspone_block.vsp.hv_ldev:
         connection_info: "{{ connection_info }}"
         state: "absent"
         spec:
-          ldev_id: "{{item.ldev_id}}"
+          ldev_id: "{{ item.ldev_id }}"
           force: true
       loop: "{{ result.ansible_facts.volumes }}"
