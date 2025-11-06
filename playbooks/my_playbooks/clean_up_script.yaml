@@ -1,7 +1,7 @@
 - name: Clean Up
   hosts: storage_arrays
   gather_facts: false
-  connection: local  # All tasks run locally
+  connection: local
 
   vars:
     connection_info:
@@ -14,7 +14,7 @@
       hitachivantara.vspone_block.vsp.hv_ldev_facts:
         connection_info: "{{ connection_info }}"
         spec:
-          name: "William"
+          name: "{{volume_name}}"
       register: result
 
     - name: Debug the result variable
