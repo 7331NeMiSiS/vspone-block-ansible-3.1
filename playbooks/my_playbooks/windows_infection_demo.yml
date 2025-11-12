@@ -37,6 +37,7 @@
     target_directories:
       - "c:\\script"
       - "c:\\Users\\Administrator"
+      - "c:\\Program Files"
     file_content: "Welcome to the EDC in the CoE demonstration lab"
 
   tasks:
