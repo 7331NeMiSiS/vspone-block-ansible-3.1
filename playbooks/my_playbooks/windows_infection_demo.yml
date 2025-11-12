@@ -1,0 +1,99 @@
+## Enable WinRM
+#   Enable-PSRemoting -Force
+#
+#   # Configure WinRM for HTTPS
+#   winrm quickconfig -transport:https
+#
+#   # Allow unencrypted traffic (for testing only - not recommended for production)
+#   Set-Item WSMan:\localhost\Service\AllowUnencrypted -Value $true
+#
+#   # Set authentication methods
+#   Set-Item WSMan:\localhost\Service\Auth\Basic -Value $true
+#
+#   # Check WinRM service
+#   Get-Service WinRM
+#
+#   # Test WinRM
+#   Test-WSMan
+
+---
+- name: Write random file to Windows host
+  hosts: localhost
+  gather_facts: no
+  connection: local
+
+  vars:
+    # Windows host connection details
+    windows_host: "192.168.1.100"
+    windows_user: "Administrator"
+    windows_password: "YourPasswordHere"
+    windows_port: 5985  # Use 5985 for HTTP, 5986 for HTTPS
+
+    # File and directory options
+    file_names:
+      - "svchost.exe"
+      - "autoexec.bat"
+      - "config.sys"
+    target_directories:
+      - "c:\\script"
+      - "c:\\Users\\Administrator"
+    file_content: "Welcome to the EDC in the CoE demonstration lab"
+
+  tasks:
+    - name: Select random filename and directory
+      set_fact:
+        random_filename: "{{ file_names | random }}"
+        random_directory: "{{ target_directories | random }}"
+
+    - name: Display selected file and location
+      debug:
+        msg: "Writing file '{{ random_filename }}' to '{{ random_directory }}' on {{ windows_host }}"
+
+    - name: Ensure target directory exists
+      ansible.windows.win_powershell:
+        script: |
+          $targetDir = "{{ random_directory }}"
+          if (-not (Test-Path -Path $targetDir)) {
+              New-Item -Path $targetDir -ItemType Directory -Force | Out-Null
+              Write-Output "Directory created: $targetDir"
+          } else {
+              Write-Output "Directory already exists: $targetDir"
+          }
+      delegate_to: "{{ windows_host }}"
+      vars:
+        ansible_connection: winrm
+        ansible_user: "{{ windows_user }}"
+        ansible_password: "{{ windows_password }}"
+        ansible_port: "{{ windows_port }}"
+        ansible_winrm_transport: ntlm
+        ansible_winrm_server_cert_validation: ignore
+
+    - name: Write file with specified content
+      ansible.windows.win_powershell:
+        script: |
+          $filePath = Join-Path "{{ random_directory }}" "{{ random_filename }}"
+          $content = "{{ file_content }}"
+          
+          Set-Content -Path $filePath -Value $content -Force
+          
+          if (Test-Path -Path $filePath) {
+              $fileInfo = Get-Item -Path $filePath
+              Write-Output "File created successfully: $filePath"
+              Write-Output "File size: $($fileInfo.Length) bytes"
+              Write-Output "Created: $($fileInfo.CreationTime)"
+          } else {
+              throw "Failed to create file: $filePath"
+          }
+      delegate_to: "{{ windows_host }}"
+      vars:
+        ansible_connection: winrm
+        ansible_user: "{{ windows_user }}"
+        ansible_password: "{{ windows_password }}"
+        ansible_port: "{{ windows_port }}"
+        ansible_winrm_transport: ntlm
+        ansible_winrm_server_cert_validation: ignore
+      register: file_creation_result
+
+    - name: Display file creation result
+      debug:
+        var: file_creation_result.output
