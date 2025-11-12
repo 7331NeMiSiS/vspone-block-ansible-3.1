@@ -13,6 +13,11 @@
     
     # Script details
     script_path: "c:\\scripts\\ransomware-enable.ps1"
+
+    # Restart options
+    needs_restart: yes       # Set to 'no' if script doesn't require restart
+    restart_timeout: 600     # Maximum time to wait for restart (seconds)
+    restart_message: "System restart required after script execution"
   
   tasks:
     - name: Check if PowerShell script exists
@@ -53,6 +58,23 @@
         ansible_winrm_transport: ntlm
         ansible_winrm_server_cert_validation: ignore
       register: script_output
+
+    - name: Force restart Windows host (if needed)
+      ansible.windows.win_reboot:
+        reboot_timeout: "{{ restart_timeout }}"
+        msg: "{{ restart_message }}"
+        pre_reboot_delay: 10
+        post_reboot_delay: 45
+      delegate_to: "{{ windows_host }}"
+      vars:
+        ansible_connection: winrm
+        ansible_user: "{{ windows_user }}"
+        ansible_password: "{{ windows_password }}"
+        ansible_port: "{{ windows_port }}"
+        ansible_winrm_transport: ntlm
+        ansible_winrm_server_cert_validation: ignore
+      register: reboot_result
+      when: needs_restart | bool
     
     - name: Display script execution results
       debug:
