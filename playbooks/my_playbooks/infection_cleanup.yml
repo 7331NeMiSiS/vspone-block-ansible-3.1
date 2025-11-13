@@ -1,0 +1,66 @@
+---
+- name: Cleanup files created by random file playbook
+  hosts: localhost
+  gather_facts: no
+  connection: local
+
+  vars:
+    windows_host: "192.168.1.100"
+    windows_user: "Administrator"
+    windows_password: "YourPasswordHere"
+    windows_port: 5985
+
+    file_names:
+      - "svchost.exe"
+      - "autoexec.bat"
+      - "config.sys"
+    target_directories:
+      - "c:\\script"
+      - "c:\\Users\\Administrator"
+      - "c:\\Program Files"
+
+  tasks:
+    - name: Check and remove files from all locations
+      ansible.windows.win_powershell:
+        script: |
+          $fileNames = @("{{ file_names | join('", "') }}")
+          $targetDirectories = @("{{ target_directories | join('", "') }}")
+          
+          $filesFound = 0
+          $filesDeleted = 0
+          
+          foreach ($directory in $targetDirectories) {
+              if (Test-Path -Path $directory) {
+                  foreach ($fileName in $fileNames) {
+                      $filePath = Join-Path -Path $directory -ChildPath $fileName
+                      
+                      if (Test-Path -Path $filePath) {
+                          $filesFound++
+                          Write-Output "Found: $filePath"
+                          
+                          try {
+                              Remove-Item -Path $filePath -Force -ErrorAction Stop
+                              $filesDeleted++
+                              Write-Output "Deleted: $filePath"
+                          } catch {
+                              Write-Output "Error deleting: $filePath - $($_.Exception.Message)"
+                          }
+                      }
+                  }
+              }
+          }
+          
+          Write-Output "Summary: Found $filesFound files, Deleted $filesDeleted files"
+      delegate_to: "{{ windows_host }}"
+      vars:
+        ansible_connection: winrm
+        ansible_user: "{{ windows_user }}"
+        ansible_password: "{{ windows_password }}"
+        ansible_port: "{{ windows_port }}"
+        ansible_winrm_transport: ntlm
+        ansible_winrm_server_cert_validation: ignore
+      register: cleanup_result
+
+    - name: Display cleanup results
+      debug:
+        var: cleanup_result.output
