@@ -44,6 +44,11 @@
       - "c:\\script"
       - "c:\\Users\\Administrator"
       - "c:\\Program Files"
+      - "e:\\Script"
+      - "e:\\temp"
+      - "e:\\Shared"
+      - "e:\\Install"
+      - "e:\\Deployed"
     file_content: "Welcome to the EDC in the CoE demonstration lab"
 
   tasks:
