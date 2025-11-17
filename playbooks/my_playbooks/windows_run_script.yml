@@ -5,25 +5,74 @@
   connection: local
   
   vars:
-    # Windows host connection details
-    windows_host: "192.168.1.100"
+    vcenter_host: "vcenter.example.com"
+    vcenter_user: "administrator@vsphere.local"
+    vcenter_password: "VcenterPassword"
+    vm_display_names:
+      - "Windows-Target-VM-1"
+      - "Windows-Target-VM-2"
+      - "Windows-Target-VM-3"
+    
     windows_user: "Administrator"
     windows_password: "YourPasswordHere"
-    windows_port: 5985  # Use 5985 for HTTP, 5986 for HTTPS
+    windows_port: 5985
     
-    # Script details
     script_path: "c:\\scripts\\ransomware-enable.ps1"
 
-    # Restart options
-    needs_restart: yes       # Set to 'no' if script doesn't require restart
-    restart_timeout: 600     # Maximum time to wait for restart (seconds)
+    needs_restart: yes
+    restart_timeout: 600
     restart_message: "System restart required after script execution"
   
   tasks:
+    - name: Get vCenter session token
+      uri:
+        url: "https://{{ vcenter_host }}/api/session"
+        method: POST
+        user: "{{ vcenter_user }}"
+        password: "{{ vcenter_password }}"
+        force_basic_auth: yes
+        validate_certs: no
+        status_code: 201
+      register: vcenter_session
+
+    - name: Get list of VMs
+      uri:
+        url: "https://{{ vcenter_host }}/api/vcenter/vm"
+        method: GET
+        headers:
+          vmware-api-session-id: "{{ vcenter_session.json }}"
+        validate_certs: no
+        status_code: 200
+      register: vm_list
+
+    - name: Find target VMs by display names
+      set_fact:
+        target_vms: "{{ vm_list.json | selectattr('name', 'in', vm_display_names) | list }}"
+
+    - name: Get VM network info for all targets
+      uri:
+        url: "https://{{ vcenter_host }}/api/vcenter/vm/{{ item.vm }}/guest/networking/interfaces"
+        method: GET
+        headers:
+          vmware-api-session-id: "{{ vcenter_session.json }}"
+        validate_certs: no
+        status_code: 200
+      loop: "{{ target_vms }}"
+      register: vm_network_results
+
+    - name: Build VM to IP mapping
+      set_fact:
+        vm_ip_map: "{{ vm_ip_map | default({}) | combine({item.item.name: (item.json | map(attribute='ip.ip_addresses') | flatten | selectattr('ip_address', 'match', '^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$') | map(attribute='ip_address') | first)}) }}"
+      loop: "{{ vm_network_results.results }}"
+
+    - name: Display target VMs and IPs
+      debug:
+        msg: "Found {{ vm_ip_map | length }} VMs - {{ vm_ip_map }}"
+
     - name: Check if PowerShell script exists
       ansible.windows.win_stat:
         path: "{{ script_path }}"
-      delegate_to: "{{ windows_host }}"
+      delegate_to: "{{ item.value }}"
       vars:
         ansible_connection: winrm
         ansible_user: "{{ windows_user }}"
@@ -31,25 +80,23 @@
         ansible_port: "{{ windows_port }}"
         ansible_winrm_transport: ntlm
         ansible_winrm_server_cert_validation: ignore
+      loop: "{{ vm_ip_map | dict2items }}"
       register: script_file
-    
-    - name: Fail if script does not exist
-      fail:
-        msg: "Script not found at {{ script_path }}"
-      when: not script_file.stat.exists
     
     - name: Display script information
       debug:
         msg: 
+          - "VM: {{ item.item.key }} ({{ item.item.value }})"
           - "Script found: {{ script_path }}"
-          - "Size: {{ script_file.stat.size }} bytes"
-          - "Last modified: {{ script_file.stat.lastwritetime }}"
-      when: script_file.stat.exists
+          - "Size: {{ item.stat.size }} bytes"
+          - "Last modified: {{ item.stat.lastwritetime }}"
+      loop: "{{ script_file.results }}"
+      when: item.stat.exists
     
     - name: Execute PowerShell script
       ansible.windows.win_shell: |
         & "{{ script_path }}"
-      delegate_to: "{{ windows_host }}"
+      delegate_to: "{{ item.value }}"
       vars:
         ansible_connection: winrm
         ansible_user: "{{ windows_user }}"
@@ -57,6 +104,7 @@
         ansible_port: "{{ windows_port }}"
         ansible_winrm_transport: ntlm
         ansible_winrm_server_cert_validation: ignore
+      loop: "{{ vm_ip_map | dict2items }}"
       register: script_output
 
     - name: Force restart Windows host (if needed)
@@ -65,7 +113,7 @@
         msg: "{{ restart_message }}"
         pre_reboot_delay: 10
         post_reboot_delay: 45
-      delegate_to: "{{ windows_host }}"
+      delegate_to: "{{ item.value }}"
       vars:
         ansible_connection: winrm
         ansible_user: "{{ windows_user }}"
@@ -73,20 +121,25 @@
         ansible_port: "{{ windows_port }}"
         ansible_winrm_transport: ntlm
         ansible_winrm_server_cert_validation: ignore
+      loop: "{{ vm_ip_map | dict2items }}"
       register: reboot_result
       when: needs_restart | bool
     
     - name: Display script execution results
       debug:
         msg:
+          - "VM: {{ item.item.key }} ({{ item.item.value }})"
           - "Script executed successfully"
-          - "Exit Code: {{ script_output.rc }}"
+          - "Exit Code: {{ item.rc }}"
           - "--- Output ---"
-          - "{{ script_output.stdout }}"
+          - "{{ item.stdout }}"
+      loop: "{{ script_output.results }}"
     
     - name: Display any errors
       debug:
         msg:
+          - "VM: {{ item.item.key }} ({{ item.item.value }})"
           - "--- Errors/Warnings ---"
-          - "{{ script_output.stderr }}"
-      when: script_output.stderr | length > 0
+          - "{{ item.stderr }}"
+      loop: "{{ script_output.results }}"
+      when: item.stderr | length > 0
