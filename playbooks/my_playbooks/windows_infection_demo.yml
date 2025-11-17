@@ -23,13 +23,18 @@
   connection: local
 
   vars:
-    # Windows host connection details
-    windows_host: "192.168.1.100"
+    vcenter_host: "vcenter.example.com"
+    vcenter_user: "administrator@vsphere.local"
+    vcenter_password: "VcenterPassword"
+    vm_display_names:
+      - "Windows-Target-VM-1"
+      - "Windows-Target-VM-2"
+      - "Windows-Target-VM-3"
+    
     windows_user: "Administrator"
     windows_password: "YourPasswordHere"
-    windows_port: 5985  # Use 5985 for HTTP, 5986 for HTTPS
+    windows_port: 5985
 
-    # File and directory options
     file_names:
       - "svchost.exe"
       - "autoexec.bat"
@@ -52,26 +57,72 @@
     file_content: "Welcome to the EDC in the CoE demonstration lab"
 
   tasks:
-    - name: Select random filename and directory
-      set_fact:
-        random_filename: "{{ file_names | random }}"
-        random_directory: "{{ target_directories | random }}"
+    - name: Get vCenter session token
+      uri:
+        url: "https://{{ vcenter_host }}/api/session"
+        method: POST
+        user: "{{ vcenter_user }}"
+        password: "{{ vcenter_password }}"
+        force_basic_auth: yes
+        validate_certs: no
+        status_code: 201
+      register: vcenter_session
 
-    - name: Display selected file and location
+    - name: Get list of VMs
+      uri:
+        url: "https://{{ vcenter_host }}/api/vcenter/vm"
+        method: GET
+        headers:
+          vmware-api-session-id: "{{ vcenter_session.json }}"
+        validate_certs: no
+        status_code: 200
+      register: vm_list
+
+    - name: Find target VMs by display names
+      set_fact:
+        target_vms: "{{ vm_list.json | selectattr('name', 'in', vm_display_names) | list }}"
+
+    - name: Get VM network info for all targets
+      uri:
+        url: "https://{{ vcenter_host }}/api/vcenter/vm/{{ item.vm }}/guest/networking/interfaces"
+        method: GET
+        headers:
+          vmware-api-session-id: "{{ vcenter_session.json }}"
+        validate_certs: no
+        status_code: 200
+      loop: "{{ target_vms }}"
+      register: vm_network_results
+
+    - name: Build VM to IP mapping
+      set_fact:
+        vm_ip_map: "{{ vm_ip_map | default({}) | combine({item.item.name: (item.json | map(attribute='ip.ip_addresses') | flatten | selectattr('ip_address', 'match', '^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$') | map(attribute='ip_address') | first)}) }}"
+      loop: "{{ vm_network_results.results }}"
+
+    - name: Display target VMs and IPs
       debug:
-        msg: "Writing file '{{ random_filename }}' to '{{ random_directory }}' on {{ windows_host }}"
+        msg: "Found {{ vm_ip_map | length }} VMs - {{ vm_ip_map }}"
+
+    - name: Select random filename and directory for each VM
+      set_fact:
+        vm_file_map: "{{ vm_file_map | default({}) | combine({item.key: {'filename': file_names | random, 'directory': target_directories | random}}) }}"
+      loop: "{{ vm_ip_map | dict2items }}"
+
+    - name: Display selected files and locations
+      debug:
+        msg: "VM: {{ item.key }} ({{ item.value }}) - Writing '{{ vm_file_map[item.key].filename }}' to '{{ vm_file_map[item.key].directory }}'"
+      loop: "{{ vm_ip_map | dict2items }}"
 
     - name: Ensure target directory exists
       ansible.windows.win_powershell:
         script: |
-          $targetDir = "{{ random_directory }}"
+          $targetDir = "{{ vm_file_map[item.key].directory }}"
           if (-not (Test-Path -Path $targetDir)) {
               New-Item -Path $targetDir -ItemType Directory -Force | Out-Null
               Write-Output "Directory created: $targetDir"
           } else {
               Write-Output "Directory already exists: $targetDir"
           }
-      delegate_to: "{{ windows_host }}"
+      delegate_to: "{{ item.value }}"
       vars:
         ansible_connection: winrm
         ansible_user: "{{ windows_user }}"
@@ -79,11 +130,12 @@
         ansible_port: "{{ windows_port }}"
         ansible_winrm_transport: ntlm
         ansible_winrm_server_cert_validation: ignore
+      loop: "{{ vm_ip_map | dict2items }}"
 
     - name: Write file with specified content
       ansible.windows.win_powershell:
         script: |
-          $filePath = Join-Path "{{ random_directory }}" "{{ random_filename }}"
+          $filePath = Join-Path "{{ vm_file_map[item.key].directory }}" "{{ vm_file_map[item.key].filename }}"
           $content = "{{ file_content }}"
           
           Set-Content -Path $filePath -Value $content -Force
@@ -96,7 +148,7 @@
           } else {
               throw "Failed to create file: $filePath"
           }
-      delegate_to: "{{ windows_host }}"
+      delegate_to: "{{ item.value }}"
       vars:
         ansible_connection: winrm
         ansible_user: "{{ windows_user }}"
@@ -104,8 +156,12 @@
         ansible_port: "{{ windows_port }}"
         ansible_winrm_transport: ntlm
         ansible_winrm_server_cert_validation: ignore
+      loop: "{{ vm_ip_map | dict2items }}"
       register: file_creation_result
 
     - name: Display file creation result
       debug:
-        var: file_creation_result.output
+        msg: 
+          - "VM: {{ item.item.key }} ({{ item.item.value }})"
+          - "{{ item.output }}"
+      loop: "{{ file_creation_result.results }}"
