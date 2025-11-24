@@ -113,6 +113,7 @@
         ansible_winrm_server_cert_validation: ignore
       loop: "{{ vm_ip_map | dict2items }}"
       register: cleanup_result
+      ignore_errors: yes
 
     - name: Display cleanup results
       debug:
