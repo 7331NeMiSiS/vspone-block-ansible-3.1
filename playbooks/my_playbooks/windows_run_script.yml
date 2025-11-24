@@ -82,6 +82,7 @@
         ansible_winrm_server_cert_validation: ignore
       loop: "{{ vm_ip_map | dict2items }}"
       register: script_file
+      ignore_errors: yes
     
     - name: Display script information
       debug:
@@ -106,6 +107,7 @@
         ansible_winrm_server_cert_validation: ignore
       loop: "{{ vm_ip_map | dict2items }}"
       register: script_output
+      ignore_errors: yes
 
     - name: Force restart Windows host (if needed)
       ansible.windows.win_reboot:
@@ -124,6 +126,7 @@
       loop: "{{ vm_ip_map | dict2items }}"
       register: reboot_result
       when: needs_restart | bool
+      ignore_errors: yes
     
     - name: Display script execution results
       debug:
