@@ -21,10 +21,21 @@
       - "svchost.exe"
       - "autoexec.bat"
       - "config.sys"
+      - "questionaire.dll"
+      - "newDriverExtention.dll"
+      - "TheRocket.exe"
+      - "Elevator.exe"
+      - "RootKit.exe"
+      - "DontTheKat.exe"
     target_directories:
       - "c:\\script"
       - "c:\\Users\\Administrator"
       - "c:\\Program Files"
+      - "e:\\Script"
+      - "e:\\temp"
+      - "e:\\Shared"
+      - "e:\\Install"
+      - "e:\\Deployed"
 
   tasks:
     - name: Get vCenter session token
