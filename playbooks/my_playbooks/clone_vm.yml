@@ -13,8 +13,8 @@
   tasks:
     - name: Delete existing VM
       community.vmware.vmware_guest:
-        hostname: "{{ vcenter_hostname }}"
-        username: "{{ vcenter_username }}"
+        hostname: "{{ vcenter_host }}"
+        username: "{{ vcenter_usern }}"
         password: "{{ vcenter_password }}"
         validate_certs: false
         datacenter: "{{ datacenter }}"
@@ -24,8 +24,8 @@
 
     - name: Clone VM
       community.vmware.vmware_guest:
-        hostname: "{{ vcenter_hostname }}"
-        username: "{{ vcenter_username }}"
+        hostname: "{{ vcenter_host }}"
+        username: "{{ vcenter_user }}"
         password: "{{ vcenter_password }}"
         validate_certs: false
         datacenter: "{{ datacenter }}"
