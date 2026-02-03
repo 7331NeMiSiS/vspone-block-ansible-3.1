@@ -31,4 +31,5 @@
         datacenter: "{{ datacenter }}"
         name: "{{ target_vm }}"
         template: "{{ source_vm }}"
+        folder: Casino
         state: poweredon
