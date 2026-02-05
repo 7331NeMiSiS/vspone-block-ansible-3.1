@@ -31,11 +31,9 @@
             - name: "{{ hostgroup_name }}"
               port: "CL3-A"
               enable_preferred_path: false
-              lun_id: 1
             - name: "{{ hostgroup_name }}"
               port: "CL4-A"
               enable_preferred_path: false
-              lun_id: 1
           primary_hostgroups:
             - name: "{{ hostgroup_name }}"
               port: "CL1-A"
