@@ -45,10 +45,10 @@
           primary_hostgroups:
             - name: "{{hostgroup_name}}"
               port: "CL1-A"
-              enable_preferred_path: false
+              enable_preferred_path: true
             - name: "{{hostgroup_name}}"
               port: "CL2-A"
-              enable_preferred_path: false
+              enable_preferred_path: true
           quorum_disk_id: 0
           allocate_new_consistency_group: false
       register: result
