@@ -18,4 +18,4 @@
           username: "{{ vault_storage_username }}"
           password: "{{ vault_storage_secret }}"
         spec:
-          ldev_id: "{{ldev_id}}"
+          ldev_id: "{{primary_vol_id}}"
