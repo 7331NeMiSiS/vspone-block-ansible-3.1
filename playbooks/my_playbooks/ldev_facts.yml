@@ -19,3 +19,11 @@
           password: "{{ vault_storage_secret }}"
         spec:
           ldev_id: "{{primary_vol_id}}"
+      register: result
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result
+
+    - name: Setting facts for naa_id
+      ansible.builtin.set_fact:
+        naa_id: result.volumes.canonical_name
