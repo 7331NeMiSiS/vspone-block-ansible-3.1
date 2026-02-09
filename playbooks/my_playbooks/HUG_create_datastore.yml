@@ -1,0 +1,54 @@
+---
+- name: Rescan storage and create VMware datastore
+  hosts: localhost
+  gather_facts: false
+  vars:
+    vcenter_hostname: "{{ vcenter_hostname }}"
+    vcenter_username: "{{ vcenter_username }}"
+    vcenter_password: "{{ vcenter_password }}"
+    cluster_name: "{{ cluster_name }}"
+    naa_id: "{{ naa_id }}"
+    datastore_name: "{{ datastore_name }}"
+    validate_certs: false
+
+  tasks:
+    - name: Rescan HBA on all cluster hosts
+      community.vmware.vmware_host_scanhba:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        cluster_name: "{{ cluster_name }}"
+        refresh_storage: true
+        validate_certs: "{{ validate_certs }}"
+      delegate_to: localhost
+
+    - name: Wait for storage rescan to complete
+      pause:
+        seconds: 10
+
+    - name: Get cluster hosts
+      community.vmware.vmware_cluster_info:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        cluster_name: "{{ cluster_name }}"
+        validate_certs: "{{ validate_certs }}"
+      register: cluster_info
+      delegate_to: localhost
+
+    - name: Select first host for datastore creation
+      set_fact:
+        target_host: "{{ cluster_info.clusters[cluster_name].hosts[0] }}"
+
+    - name: Create VMFS datastore on NAA device
+      community.vmware.vmware_host_datastore:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        esxi_hostname: "{{ target_host }}"
+        datastore_name: "{{ datastore_name }}"
+        datastore_type: 'vmfs'
+        vmfs_device_name: "{{ naa_id }}"
+        vmfs_version: 6
+        validate_certs: "{{ validate_certs }}"
+      delegate_to: localhost
