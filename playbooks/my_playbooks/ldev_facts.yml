@@ -25,6 +25,6 @@
         var: result
 
     - name: Setting facts for naa_id
-  ansible.builtin.set_fact:
-    naa_id: "{{ result.volumes.canonical_name }}"  # Remove quotes around result
-    cacheable: yes  # Important for workflow persistence
+      ansible.builtin.set_fact:
+        naa_id: "{{ result.volumes.canonical_name }}"  # Remove quotes around result
+        cacheable: yes  # Important for workflow persistence
