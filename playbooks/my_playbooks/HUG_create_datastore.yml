@@ -27,7 +27,6 @@
     - name: Setting facts for naa_id
       ansible.builtin.set_fact:
         naa_id: "{{ result.ansible_facts.volumes[0].canonical_name }}"
-        cacheable: yes
   
     - name: Rescan HBA on all cluster hosts
       community.vmware.vmware_host_scanhba:
@@ -55,7 +54,7 @@
 
     - name: Select first host from cluster
       set_fact:
-        target_host: "{{ cluster_info.clusters[cluster_name].hosts | first }}"
+        target_host: "{{ cluster_info.clusters[cluster_name].hosts[0].name }}"
 
     - name: Create VMFS datastore on NAA device
       community.vmware.vmware_host_datastore:
@@ -65,7 +64,7 @@
         esxi_hostname: "{{ target_host }}"
         datastore_name: "{{ datastore_name }}"
         datastore_type: 'vmfs'
-        vmfs_device_name: "{{ naa_id }}"
+        vmfs_device_name: "{{ result.ansible_facts.volumes[0].canonical_name }}"
         vmfs_version: 6
         validate_certs: "{{ validate_certs }}"
       delegate_to: localhost
