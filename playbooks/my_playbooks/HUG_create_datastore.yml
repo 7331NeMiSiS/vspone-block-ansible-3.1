@@ -7,7 +7,6 @@
     vcenter_username: "{{ vcenter_username }}"
     vcenter_password: "{{ vcenter_password }}"
     cluster_name: "{{ cluster_name }}"
-    naa_id: "{{ naa_id }}"
     datastore_name: "{{ datastore_name }}"
     validate_certs: false
   tasks:
@@ -66,7 +65,7 @@
         esxi_hostname: "{{ target_host }}"
         datastore_name: "{{ datastore_name }}"
         datastore_type: 'vmfs'
-        vmfs_device_name: "naa.{{ naa_id }}"
+        vmfs_device_name: "{{ naa_id }}"
         vmfs_version: 6
         validate_certs: "{{ validate_certs }}"
       delegate_to: localhost
