@@ -12,19 +12,18 @@
     validate_certs: false
 
   tasks:
-    ---
-- name: Rescan storage and create VMware datastore
-  hosts: localhost
-  gather_facts: false
-  vars:
-    vcenter_hostname: "{{ vcenter_hostname }}"
-    vcenter_username: "{{ vcenter_username }}"
-    vcenter_password: "{{ vcenter_password }}"
-    cluster_name: "{{ cluster_name }}"
-    naa_id: "{{ naa_id }}"
-    datastore_name: "{{ datastore_name }}"
-    validate_certs: false
-  tasks:
+    - name: Rescan storage and create VMware datastore
+      hosts: localhost
+      gather_facts: false
+      vars:
+        vcenter_hostname: "{{ vcenter_hostname }}"
+        vcenter_username: "{{ vcenter_username }}"
+        vcenter_password: "{{ vcenter_password }}"
+        cluster_name: "{{ cluster_name }}"
+        naa_id: "{{ naa_id }}"
+        datastore_name: "{{ datastore_name }}"
+        validate_certs: false
+        
     - name: Rescan HBA on all cluster hosts
       community.vmware.vmware_host_scanhba:
         hostname: "{{ vcenter_hostname }}"
