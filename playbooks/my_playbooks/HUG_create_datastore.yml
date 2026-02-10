@@ -11,6 +11,25 @@
     datastore_name: "{{ datastore_name }}"
     validate_certs: false
   tasks:
+
+    - name: Retrieve information about a specific LDEV
+      hitachivantara.vspone_block.vsp.hv_ldev_facts:
+        connection_info:
+          address: "{{ storage_address }}"
+          username: "{{ vault_storage_username }}"
+          password: "{{ vault_storage_secret }}"
+        spec:
+          ldev_id: "{{primary_vol_id}}"
+      register: result
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result
+
+    - name: Setting facts for naa_id
+      ansible.builtin.set_fact:
+        naa_id: "{{ result.ansible_facts.volumes[0].canonical_name }}"
+        cacheable: yes
+  
     - name: Rescan HBA on all cluster hosts
       community.vmware.vmware_host_scanhba:
         hostname: "{{ vcenter_hostname }}"
