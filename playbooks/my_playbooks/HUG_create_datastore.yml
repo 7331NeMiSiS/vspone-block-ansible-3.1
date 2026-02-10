@@ -26,19 +26,19 @@
       pause:
         seconds: 10
 
-    - name: Get cluster hosts
-      community.vmware.vmware_cluster_info:
+    - name: Get ESXi hosts in cluster
+      community.vmware.vmware_host_facts:
         hostname: "{{ vcenter_hostname }}"
         username: "{{ vcenter_username }}"
         password: "{{ vcenter_password }}"
         cluster_name: "{{ cluster_name }}"
         validate_certs: "{{ validate_certs }}"
-      register: cluster_info
+      register: esxi_hosts
       delegate_to: localhost
 
-    - name: Select first host for datastore creation
+    - name: Select first connected host
       set_fact:
-        target_host: "{{ cluster_info.clusters[cluster_name].hosts[0] }}"
+        target_host: "{{ esxi_hosts.ansible_facts.keys() | first }}"
 
     - name: Create VMFS datastore on NAA device
       community.vmware.vmware_host_datastore:
