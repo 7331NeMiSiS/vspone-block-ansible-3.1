@@ -35,7 +35,7 @@
         validate_certs: "{{ validate_certs }}"
       register: esxi_hosts
       delegate_to: localhost
-
+    
     - name: Select first connected host
       set_fact:
         target_host: "{{ esxi_hosts.ansible_facts.keys() | first }}"
@@ -48,7 +48,7 @@
         esxi_hostname: "{{ target_host }}"
         datastore_name: "{{ datastore_name }}"
         datastore_type: 'vmfs'
-        vmfs_device_name: "{{ naa_id }}"
+        vmfs_device_name: "naa.{{ naa_id }}"  # Ensure naa. prefix
         vmfs_version: 6
         validate_certs: "{{ validate_certs }}"
       delegate_to: localhost
