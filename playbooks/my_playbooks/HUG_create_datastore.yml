@@ -12,6 +12,19 @@
     validate_certs: false
 
   tasks:
+    ---
+- name: Rescan storage and create VMware datastore
+  hosts: localhost
+  gather_facts: false
+  vars:
+    vcenter_hostname: "{{ vcenter_hostname }}"
+    vcenter_username: "{{ vcenter_username }}"
+    vcenter_password: "{{ vcenter_password }}"
+    cluster_name: "{{ cluster_name }}"
+    naa_id: "{{ naa_id }}"
+    datastore_name: "{{ datastore_name }}"
+    validate_certs: false
+  tasks:
     - name: Rescan HBA on all cluster hosts
       community.vmware.vmware_host_scanhba:
         hostname: "{{ vcenter_hostname }}"
@@ -26,19 +39,19 @@
       pause:
         seconds: 10
 
-    - name: Get ESXi hosts in cluster
-      community.vmware.vmware_host_facts:
+    - name: Get cluster info
+      community.vmware.vmware_cluster_info:
         hostname: "{{ vcenter_hostname }}"
         username: "{{ vcenter_username }}"
         password: "{{ vcenter_password }}"
         cluster_name: "{{ cluster_name }}"
         validate_certs: "{{ validate_certs }}"
-      register: esxi_hosts
+      register: cluster_info
       delegate_to: localhost
-    
-    - name: Select first connected host
+
+    - name: Select first host from cluster
       set_fact:
-        target_host: "{{ esxi_hosts.ansible_facts.keys() | first }}"
+        target_host: "{{ cluster_info.clusters[cluster_name].hosts | first }}"
 
     - name: Create VMFS datastore on NAA device
       community.vmware.vmware_host_datastore:
@@ -48,7 +61,7 @@
         esxi_hostname: "{{ target_host }}"
         datastore_name: "{{ datastore_name }}"
         datastore_type: 'vmfs'
-        vmfs_device_name: "naa.{{ naa_id }}"  # Ensure naa. prefix
+        vmfs_device_name: "naa.{{ naa_id }}"
         vmfs_version: 6
         validate_certs: "{{ validate_certs }}"
       delegate_to: localhost
