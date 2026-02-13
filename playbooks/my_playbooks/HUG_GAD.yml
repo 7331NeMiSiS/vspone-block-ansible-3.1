@@ -45,7 +45,6 @@
               port: "CL2-D"
               enable_preferred_path: true
           quorum_disk_id: "{{ quorum_id }}"
-          allocate_new_consistency_group: false
       register: result
 
     - name: Debug the result variable
