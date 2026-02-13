@@ -28,11 +28,10 @@
         connection_info: "{{ connection_info }}"
         secondary_connection_info: "{{ secondary_connection_info }}"
         spec:
-          copy_group_name: "copy_group_{{ primary_vol_id }}"
-          copy_pair_name: "copy_pair_name_{{ primary_vol_id }}"
+          copy_group_name: "copy_grp_{{ primary_vol_id }}"
+          copy_pair_name: "copy_pair_{{ primary_vol_id }}"
           primary_volume_id: "{{ primary_vol_id }}"
           secondary_pool_id: 0
-          is_new_group_creation: true
           path_group_id: "{{path_group_id}}"
           secondary_hostgroups:
             - name: "{{ hostgroup_name }}"
