@@ -18,6 +18,7 @@
     primary_vol_id: 300
     quorum_id: 30
     desired_state: "present"
+    path_group_id: 100
 
   tasks:
     - name: Create GAD pair
@@ -30,6 +31,7 @@
           copy_pair_name: "copy_pair_name_{{ primary_vol_id }}"
           primary_volume_id: "{{ primary_vol_id }}"
           secondary_pool_id: 0
+          path_group_id: "{{path_group_id}}"
           secondary_hostgroups:
             - name: "{{ hostgroup_name }}"
               port: "CL1-D"
