@@ -34,7 +34,7 @@
           primary_volume_id: "{{ primary_vol_id }}"
           secondary_pool_id: 0
           path_group_id: "{{path_group_id}}"
-          mu_number: 0
+          mu_number: "{{mu_number}}"
           secondary_hostgroups:
             - name: "{{ hostgroup_name }}"
               port: "CL3-A"
