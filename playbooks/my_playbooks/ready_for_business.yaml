@@ -1,0 +1,624 @@
+---
+- name: Generate Ready for Business Report
+  hosts: localhost
+  gather_facts: yes
+  vars:
+    # Storage Array Configuration
+    array_ip: "127.0.0.1"
+    array_user: "maintenance"
+    array_password: "raid-maintenance"
+    
+    # InfluxDB Configuration
+    influxdb_url: "http://your-influxdb-server:8086"
+    influxdb_org: "your-org"
+    influxdb_token: "xxxxxxxxx"
+    influxdb_bucket: "analyzer"
+    
+    # Thresholds
+    warning_threshold: 80
+    critical_threshold: 90
+    
+    # Report Configuration
+    report_path: "/tmp/ready_for_business_report.html"
+    performance_days: 30
+    
+  tasks:
+    - name: Install required Python packages
+      pip:
+        name:
+          - matplotlib
+          - pandas
+          - requests
+        state: present
+      become: yes
+      ignore_errors: yes
+
+    - name: Create report directory
+      file:
+        path: /tmp/report_data
+        state: directory
+        mode: '0755'
+
+    - name: Login to Storage Array
+      uri:
+        url: "https://{{ array_ip }}/ConfigurationManager/v1/objects/sessions"
+        method: POST
+        headers:
+          Connection: keep-alive
+          Cache-Control: no-store
+          Content-Type: application/json
+          Accept: application/json, text/plain, */*
+          Authorization: "Basic {{ (array_user + ':' + array_password) | b64encode }}"
+        validate_certs: no
+        return_content: yes
+        status_code: 
+          - 200
+          - 201
+      register: login_response
+
+    - name: Set session token
+      set_fact:
+        session_token: "{{ login_response.json.token }}"
+
+    - name: Get Pool Data
+      uri:
+        url: "https://{{ array_ip }}/ConfigurationManager/v1/objects/pools"
+        method: GET
+        headers:
+          Connection: keep-alive
+          Authorization: "Session {{ session_token }}"
+          Content-Type: application/json
+          Accept-Language: en
+          Accept: application/json, text/plain, */*
+        validate_certs: no
+        return_content: yes
+      register: pool_response
+
+    - name: Get Alert Data
+      uri:
+        url: "https://{{ array_ip }}/ConfigurationManager/v1/objects/alerts?type=DKC"
+        method: GET
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: "Session {{ session_token }}"
+        validate_certs: no
+        return_content: yes
+      register: alerts_response
+
+    - name: Get Performance Data from InfluxDB
+      uri:
+        url: "{{ influxdb_url }}/api/v2/query?org={{ influxdb_org }}"
+        method: POST
+        headers:
+          Authorization: "Token {{ influxdb_token }}"
+          Content-Type: application/vnd.flux
+          Accept: application/csv
+        body: |
+          from(bucket: "{{ influxdb_bucket }}")
+            |> range(start: -{{ performance_days }}d)
+            |> filter(fn: (r) => r["_measurement"] == "storage_port")
+            |> filter(fn: (r) => r["_field"] == "avg_of_transfer_mebibytes_per_sec")
+            |> filter(fn: (r) => r["instance_name"] == "DC2_B24_810513")
+            |> aggregateWindow(every: 1h, fn: mean, createEmpty: false)
+            |> yield(name: "mean")
+        validate_certs: no
+        return_content: yes
+      register: performance_response
+      ignore_errors: yes
+
+    - name: Calculate pool usage percentage
+      set_fact:
+        used_pool_capacity: "{{ pool_response.json.usedPoolCapacity }}"
+        total_pool_capacity: "{{ pool_response.json.totalPoolCapacity }}"
+        usage_percentage: "{{ ((pool_response.json.usedPoolCapacity | float / pool_response.json.totalPoolCapacity | float) * 100) | round(2) }}"
+
+    - name: Determine pool status
+      set_fact:
+        pool_status: >-
+          {% if usage_percentage | float >= critical_threshold %}
+          CRITICAL
+          {% elif usage_percentage | float >= warning_threshold %}
+          WARNING
+          {% else %}
+          NORMAL
+          {% endif %}
+
+    - name: Filter today's alerts
+      set_fact:
+        todays_alerts: "{{ alerts_response.json.data | selectattr('occurenceTime', 'match', '^' + ansible_date_time.date) | list }}"
+
+    - name: Save pool data
+      copy:
+        content: "{{ pool_response.json | to_json }}"
+        dest: "/tmp/report_data/pool_data.json"
+
+    - name: Save alerts data
+      copy:
+        content: "{{ alerts_response.json | to_json }}"
+        dest: "/tmp/report_data/alerts_data.json"
+
+    - name: Save today's alerts
+      copy:
+        content: "{{ todays_alerts | to_json }}"
+        dest: "/tmp/report_data/todays_alerts.json"
+
+    - name: Save performance data
+      copy:
+        content: "{{ performance_response.content | default('') }}"
+        dest: "/tmp/report_data/performance_data.csv"
+      when: performance_response.content is defined
+
+    - name: Save calculated metrics
+      copy:
+        content: |
+          {
+            "usage_percentage": {{ usage_percentage }},
+            "pool_status": "{{ pool_status }}",
+            "warning_threshold": {{ warning_threshold }},
+            "critical_threshold": {{ critical_threshold }},
+            "used_capacity_mb": {{ used_pool_capacity }},
+            "total_capacity_mb": {{ total_pool_capacity }},
+            "free_capacity_mb": {{ pool_response.json.freePoolCapacity }},
+            "report_date": "{{ ansible_date_time.iso8601 }}",
+            "report_date_display": "{{ ansible_date_time.date }} {{ ansible_date_time.time }}"
+          }
+        dest: /tmp/report_data/metrics.json
+
+    - name: Create report generation script
+      copy:
+        dest: /tmp/report_data/generate_report.py
+        mode: '0755'
+        content: |
+          #!/usr/bin/env python3
+          import json
+          import matplotlib
+          matplotlib.use('Agg')
+          import matplotlib.pyplot as plt
+          import pandas as pd
+          from datetime import datetime
+          import io
+          import base64
+          
+          # Load data
+          with open('/tmp/report_data/pool_data.json', 'r') as f:
+              pool_data = json.load(f)
+          
+          with open('/tmp/report_data/alerts_data.json', 'r') as f:
+              alerts_data = json.load(f)
+          
+          with open('/tmp/report_data/todays_alerts.json', 'r') as f:
+              todays_alerts = json.load(f)
+          
+          with open('/tmp/report_data/metrics.json', 'r') as f:
+              metrics = json.load(f)
+          
+          # Load performance data
+          try:
+              with open('/tmp/report_data/performance_data.csv', 'r') as f:
+                  performance_data = f.read()
+          except:
+              performance_data = None
+          
+          # Generate Pool Capacity Visualization
+          def generate_pool_chart():
+              fig, ax = plt.subplots(figsize=(12, 6))
+              
+              usage_pct = metrics['usage_percentage']
+              free_pct = 100 - usage_pct
+              
+              # Determine colors based on thresholds
+              if usage_pct >= metrics['critical_threshold']:
+                  used_color = '#d32f2f'  # Red
+                  status_text = 'CRITICAL'
+              elif usage_pct >= metrics['warning_threshold']:
+                  used_color = '#f57c00'  # Orange
+                  status_text = 'WARNING'
+              else:
+                  used_color = '#388e3c'  # Green
+                  status_text = 'NORMAL'
+              
+              # Create horizontal bar chart
+              categories = ['Pool Capacity']
+              used = [usage_pct]
+              free = [free_pct]
+              
+              ax.barh(categories, used, height=0.5, color=used_color, label=f'Used ({usage_pct:.2f}%)')
+              ax.barh(categories, free, height=0.5, left=used, color='#e0e0e0', label=f'Free ({free_pct:.2f}%)')
+              
+              # Add threshold lines
+              ax.axvline(x=metrics['warning_threshold'], color='orange', linestyle='--', 
+                         linewidth=2, label=f'Warning Threshold ({metrics["warning_threshold"]}%)')
+              ax.axvline(x=metrics['critical_threshold'], color='red', linestyle='--', 
+                         linewidth=2, label=f'Critical Threshold ({metrics["critical_threshold"]}%)')
+              
+              # Formatting
+              ax.set_xlim(0, 100)
+              ax.set_xlabel('Percentage (%)', fontsize=13, fontweight='bold')
+              ax.set_title(f'Storage Pool Capacity - Status: {status_text}\n{pool_data["nickname"]} (Serial: {pool_data["serial"]})', 
+                           fontsize=15, fontweight='bold', pad=20)
+              ax.legend(loc='lower right', fontsize=10)
+              ax.grid(axis='x', alpha=0.3, linestyle=':', linewidth=0.8)
+              
+              # Remove y-axis ticks
+              ax.set_yticks([])
+              
+              # Add capacity text
+              used_mb = metrics['used_capacity_mb']
+              total_mb = metrics['total_capacity_mb']
+              free_mb = metrics['free_capacity_mb']
+              
+              # Convert to GB/TB
+              used_gb = used_mb / 1024
+              total_gb = total_mb / 1024
+              free_gb = free_mb / 1024
+              
+              if total_gb > 1024:
+                  used_str = f'{used_gb/1024:.2f} TB'
+                  total_str = f'{total_gb/1024:.2f} TB'
+                  free_str = f'{free_gb/1024:.2f} TB'
+              else:
+                  used_str = f'{used_gb:.2f} GB'
+                  total_str = f'{total_gb:.2f} GB'
+                  free_str = f'{free_gb:.2f} GB'
+              
+              text_str = f'Used: {used_str} / Total: {total_str} (Free: {free_str})'
+              fig.text(0.5, 0.05, text_str, ha='center', fontsize=12, style='italic', weight='bold')
+              
+              plt.tight_layout()
+              plt.subplots_adjust(bottom=0.15)
+              
+              # Save to buffer
+              buf = io.BytesIO()
+              plt.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+              buf.seek(0)
+              img_base64 = base64.b64encode(buf.read()).decode('utf-8')
+              plt.close()
+              
+              return img_base64
+          
+          # Generate Performance Chart
+          def generate_performance_chart():
+              if not performance_data or len(performance_data.strip()) == 0:
+                  return None
+              
+              try:
+                  # Parse CSV data from InfluxDB
+                  lines = performance_data.strip().split('\n')
+                  
+                  # Find the header line (starts with table or is the first non-comment line)
+                  header_idx = 0
+                  for i, line in enumerate(lines):
+                      if not line.startswith('#') and line.strip():
+                          header_idx = i
+                          break
+                  
+                  if header_idx >= len(lines) - 1:
+                      return None
+                  
+                  # Parse data
+                  records = []
+                  for line in lines[header_idx + 1:]:
+                      if not line.strip() or line.startswith('#'):
+                          continue
+                      
+                      parts = line.split(',')
+                      if len(parts) >= 11:
+                          try:
+                              records.append({
+                                  'time': parts[6].strip(),
+                                  'port_name': parts[10].strip(),
+                                  'value': float(parts[3].strip())
+                              })
+                          except (ValueError, IndexError):
+                              continue
+                  
+                  if not records:
+                      return None
+                  
+                  df = pd.DataFrame(records)
+                  df['time'] = pd.to_datetime(df['time'])
+                  
+                  # Create plot
+                  fig, ax = plt.subplots(figsize=(16, 8))
+                  
+                  # Get unique ports and assign colors
+                  ports = df['port_name'].unique()
+                  colors = plt.cm.tab10(range(len(ports)))
+                  
+                  # Plot each port
+                  for idx, port in enumerate(ports):
+                      port_data = df[df['port_name'] == port].sort_values('time')
+                      ax.plot(port_data['time'], port_data['value'], 
+                             marker='o', label=port, linewidth=2.5, markersize=5, 
+                             color=colors[idx], alpha=0.8)
+                  
+                  ax.set_xlabel('Date/Time', fontsize=13, fontweight='bold')
+                  ax.set_ylabel('Transfer Rate (MiB/s)', fontsize=13, fontweight='bold')
+                  ax.set_title('Storage Port Performance - Last 30 Days', fontsize=16, fontweight='bold', pad=20)
+                  ax.legend(loc='best', ncol=3, fontsize=10, framealpha=0.9)
+                  ax.grid(True, alpha=0.3, linestyle=':', linewidth=0.8)
+                  plt.xticks(rotation=45, ha='right')
+                  
+                  plt.tight_layout()
+                  
+                  # Save to buffer
+                  buf = io.BytesIO()
+                  plt.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+                  buf.seek(0)
+                  img_base64 = base64.b64encode(buf.read()).decode('utf-8')
+                  plt.close()
+                  
+                  return img_base64
+              except Exception as e:
+                  print(f"Error generating performance chart: {e}")
+                  import traceback
+                  traceback.print_exc()
+                  return None
+          
+          # Generate HTML Report
+          def generate_html_report():
+              pool_chart = generate_pool_chart()
+              perf_chart = generate_performance_chart()
+              
+              # Build alerts table
+              alerts_html = ""
+              if todays_alerts:
+                  for alert in todays_alerts:
+                      severity_color = {
+                          'Serious': '#d32f2f',
+                          'Moderate': '#f57c00',
+                          'Service': '#1976d2'
+                      }.get(alert['errorLevel'], '#757575')
+                      
+                      alerts_html += f"""
+                      <tr>
+                          <td style="padding: 10px; border: 1px solid #ddd;">{alert['occurenceTime']}</td>
+                          <td style="padding: 10px; border: 1px solid #ddd;">
+                              <span style="background-color: {severity_color}; color: white; padding: 5px 10px; border-radius: 4px; font-weight: bold; display: inline-block;">
+                                  {alert['errorLevel']}
+                              </span>
+                          </td>
+                          <td style="padding: 10px; border: 1px solid #ddd;">{alert['errorSection']}</td>
+                          <td style="padding: 10px; border: 1px solid #ddd;">{alert['errorDetail']}</td>
+                          <td style="padding: 10px; border: 1px solid #ddd;">{alert['location']}</td>
+                      </tr>
+                      """
+              else:
+                  alerts_html = '<tr><td colspan="5" style="padding: 30px; text-align: center; color: #388e3c; font-weight: bold; font-size: 16px; background-color: #e8f5e9;">✓ No alerts for today - System is healthy!</td></tr>'
+              
+              # Build all alerts summary
+              serious_count = len([a for a in alerts_data['data'] if a['errorLevel'] == 'Serious'])
+              moderate_count = len([a for a in alerts_data['data'] if a['errorLevel'] == 'Moderate'])
+              service_count = len([a for a in alerts_data['data'] if a['errorLevel'] == 'Service'])
+              
+              all_alerts_summary = f"""
+              <div style="background-color: #f5f5f5; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 5px solid #1976d2;">
+                  <h3 style="margin-top: 0; color: #1976d2;">Alert Summary (All Active Alerts)</h3>
+                  <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 15px;">
+                      <div style="background-color: white; padding: 15px; border-radius: 5px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                          <div style="font-size: 28px; font-weight: bold; color: #333;">{len(alerts_data['data'])}</div>
+                          <div style="color: #666; margin-top: 5px;">Total</div>
+                      </div>
+                      <div style="background-color: white; padding: 15px; border-radius: 5px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                          <div style="font-size: 28px; font-weight: bold; color: #d32f2f;">{serious_count}</div>
+                          <div style="color: #666; margin-top: 5px;">Serious</div>
+                      </div>
+                      <div style="background-color: white; padding: 15px; border-radius: 5px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                          <div style="font-size: 28px; font-weight: bold; color: #f57c00;">{moderate_count}</div>
+                          <div style="color: #666; margin-top: 5px;">Moderate</div>
+                      </div>
+                      <div style="background-color: white; padding: 15px; border-radius: 5px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                          <div style="font-size: 28px; font-weight: bold; color: #1976d2;">{service_count}</div>
+                          <div style="color: #666; margin-top: 5px;">Service</div>
+                      </div>
+                  </div>
+              </div>
+              """
+              
+              perf_section = ""
+              if perf_chart:
+                  perf_section = f"""
+                  <h2 style="color: #1976d2; border-bottom: 3px solid #1976d2; padding-bottom: 8px; margin-top: 40px;">Performance Data (Last 30 Days)</h2>
+                  <div style="background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-top: 20px;">
+                      <img src="data:image/png;base64,{perf_chart}" style="max-width: 100%; height: auto; display: block; margin: 0 auto;" />
+                  </div>
+                  """
+              else:
+                  perf_section = """
+                  <h2 style="color: #1976d2; border-bottom: 3px solid #1976d2; padding-bottom: 8px; margin-top: 40px;">Performance Data (Last 30 Days)</h2>
+                  <div style="background-color: #fff3cd; padding: 20px; border-left: 5px solid #ffc107; margin: 20px 0; border-radius: 5px;">
+                      <strong>⚠ Note:</strong> Performance data is not available at this time. Please check InfluxDB connection settings.
+                  </div>
+                  """
+              
+              html_content = f"""
+              <!DOCTYPE html>
+              <html>
+              <head>
+                  <meta charset="UTF-8">
+                  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                  <title>Ready for Business Report - {pool_data['nickname']}</title>
+                  <style>
+                      * {{
+                          margin: 0;
+                          padding: 0;
+                          box-sizing: border-box;
+                      }}
+                      body {{
+                          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                          padding: 20px;
+                          min-height: 100vh;
+                      }}
+                      .container {{
+                          max-width: 1400px;
+                          margin: 0 auto;
+                          background-color: white;
+                          padding: 40px;
+                          box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+                          border-radius: 10px;
+                      }}
+                      h1 {{
+                          color: #1976d2;
+                          text-align: center;
+                          border-bottom: 4px solid #1976d2;
+                          padding-bottom: 15px;
+                          font-size: 36px;
+                          margin-bottom: 20px;
+                      }}
+                      h2 {{
+                          color: #1976d2;
+                          border-bottom: 3px solid #1976d2;
+                          padding-bottom: 8px;
+                          margin-top: 40px;
+                          margin-bottom: 20px;
+                          font-size: 26px;
+                      }}
+                      table {{
+                          width: 100%;
+                          border-collapse: collapse;
+                          margin: 20px 0;
+                          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                          border-radius: 8px;
+                          overflow: hidden;
+                      }}
+                      th {{
+                          background-color: #1976d2;
+                          color: white;
+                          padding: 15px;
+                          text-align: left;
+                          font-weight: bold;
+                          font-size: 14px;
+                          text-transform: uppercase;
+                      }}
+                      tr:nth-child(even) {{
+                          background-color: #f8f9fa;
+                      }}
+                      tr:hover {{
+                          background-color: #e3f2fd;
+                      }}
+                      .report-header {{
+                          text-align: center;
+                          margin-bottom: 40px;
+                          padding: 20px;
+                          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                          color: white;
+                          border-radius: 8px;
+                      }}
+                      .report-date {{
+                          font-style: italic;
+                          font-size: 16px;
+                          margin-top: 10px;
+                      }}
+                      .report-info {{
+                          font-size: 18px;
+                          margin-top: 10px;
+                      }}
+                      .chart-container {{
+                          background-color: white;
+                          padding: 20px;
+                          border-radius: 8px;
+                          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                          margin: 20px 0;
+                      }}
+                      @media print {{
+                          body {{
+                              background: white;
+                              padding: 0;
+                          }}
+                          .container {{
+                              box-shadow: none;
+                          }}
+                      }}
+                  </style>
+              </head>
+              <body>
+                  <div class="container">
+                      <div class="report-header">
+                          <h1 style="color: white; border: none; margin: 0;">🏢 Ready for Business Report</h1>
+                          <p class="report-date">📅 Generated: {metrics['report_date_display']}</p>
+                          <p class="report-info"><strong>Storage Array:</strong> {pool_data['nickname']}</p>
+                          <p class="report-info"><strong>Model:</strong> {pool_data['modelName']} | <strong>Serial:</strong> {pool_data['serial']}</p>
+                      </div>
+                      
+                      <h2>📊 Pool Capacity Status</h2>
+                      <div class="chart-container">
+                          <img src="data:image/png;base64,{pool_chart}" style="max-width: 100%; height: auto; display: block; margin: 0 auto;" />
+                      </div>
+                      
+                      <h2>🚨 System Alerts</h2>
+                      {all_alerts_summary}
+                      
+                      <h3 style="color: #333; margin-top: 30px; margin-bottom: 15px;">Today's Alerts ({len(todays_alerts)} alerts)</h3>
+                      <table>
+                          <thead>
+                              <tr>
+                                  <th>⏰ Time</th>
+                                  <th>⚠ Severity</th>
+                                  <th>📍 Section</th>
+                                  <th>📝 Detail</th>
+                                  <th>🔍 Location</th>
+                              </tr>
+                          </thead>
+                          <tbody>
+                              {alerts_html}
+                          </tbody>
+                      </table>
+                      
+                      {perf_section}
+                      
+                      <div style="margin-top: 50px; padding-top: 20px; border-top: 2px solid #e0e0e0; text-align: center; color: #666; font-size: 14px;">
+                          <p>Report generated automatically by Ansible | Ready for Business Monitoring System</p>
+                      </div>
+                  </div>
+              </body>
+              </html>
+              """
+              
+              with open('/tmp/ready_for_business_report.html', 'w') as f:
+                  f.write(html_content)
+              
+              print("✅ Report generated successfully: /tmp/ready_for_business_report.html")
+          
+          # Generate the report
+          if __name__ == '__main__':
+              generate_html_report()
+
+    - name: Generate report with visualizations
+      command: python3 /tmp/report_data/generate_report.py
+      args:
+        chdir: /tmp/report_data
+      register: report_output
+
+    - name: Display report generation output
+      debug:
+        var: report_output.stdout_lines
+
+    - name: Display report location
+      debug:
+        msg: "✅ Report generated at: {{ report_path }}"
+
+    - name: Display summary
+      debug:
+        msg: |
+          ==========================================
+          📊 READY FOR BUSINESS REPORT SUMMARY
+          ==========================================
+          Storage Array: {{ pool_response.json.nickname }}
+          Model: {{ pool_response.json.modelName }}
+          Serial: {{ pool_response.json.serial }}
+          
+          💾 Pool Capacity:
+             Status: {{ pool_status }}
+             Usage: {{ usage_percentage }}%
+             Used: {{ used_pool_capacity }} MB
+             Total: {{ total_pool_capacity }} MB
+             Free: {{ pool_response.json.freePoolCapacity }} MB
+          
+          🚨 Alerts:
+             Total Active: {{ alerts_response.json.data | length }}
+             Today's Alerts: {{ todays_alerts | length }}
+          
+          📄 Report: {{ report_path }}
+          ==========================================

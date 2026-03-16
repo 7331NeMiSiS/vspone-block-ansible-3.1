@@ -1,0 +1,184 @@
+---
+####################################################################
+# Example :  Global Active Device Pair (GAD) Playbook
+####################################################################
+- name: GAD - Global Active Device Pair Management
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    secondary_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    primary_volume_size: 10
+    volume_name: "william"
+    primary_servers:
+      - "william"
+    secondary_servers:
+      - "johann"
+    ticket: "srv109045"
+    ports:
+      - "CL1-C"
+      - "CL2-C"
+    # REST API settings
+    resource_group_id: 3
+    authentication_timeout: 600
+    validate_certs: false
+    max_wait_time: 300
+    check_interval: 5
+
+  tasks:
+    ###########################################################################
+    # Task Name : Create ldev with capacity saving and data_reduction_share
+    ###########################################################################
+    - name: Create ldev with capacity saving and data_reduction_share
+      hitachivantara.vspone_block.vsp.hv_ldev:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          pool_id: 0
+          name: "{{volume_name}}"
+          size: "{{primary_volume_size}}GB"
+          capacity_saving: "compression_deduplication"
+          data_reduction_share: true
+      register: ldev_result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: ldev_result
+
+    - name: Unmap Virtual ID
+      hitachivantara.vspone_block.vsp.hv_ldev:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          ldev_id: "{{ ldev_result.volume.ldev_id }}"
+          vldev_id: -1
+
+      register: ldev_result
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: ldev_result
+    - name: Map to Resource Group
+      hitachivantara.vspone_block.vsp.hv_ldev:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          ldev_id: "{{ ldev_result.volume.ldev_id }}"
+          vldev_id: "{{ ldev_result.volume.ldev_id }}"
+          resource_group_id: "{{resource_group_id}}"
+
+      register: ldev_result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: ldev_result
+
+    ####################################################################
+    # Task Name : Present volume to primary server hostgroups
+    ####################################################################
+    - name: Present volume to primary server hostgroups
+      hitachivantara.vspone_block.vsp.hv_hg:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          state: "present_ldev"
+          name: "{{ item.0 }}"
+          port: "{{ item.1 }}"
+          ldevs: ["{{ ldev_result.volume.ldev_id }}"]
+      loop: "{{ primary_servers | product(ports) | list }}"
+      register: presentation_result
+      ignore_errors: True
+
+    - name: Debug volume presentation results
+      ansible.builtin.debug:
+        var: presentation_result
+
+    ####################################################################
+    # Task Name : Present volume to secondary server hostgroups
+    ####################################################################
+    - name: Present volume to secondary server hostgroups
+      hitachivantara.vspone_block.vsp.hv_hg:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          state: "present_ldev"
+          name: "{{ item.0 }}"
+          port: "{{ item.1 }}"
+          ldevs: [ "{{ ldev_result.volume.ldev_id }}" ]
+      loop: "{{ secondary_servers | product(ports) | list }}"
+      register: presentation_result
+      ignore_errors: True
+
+    - name: Debug volume presentation results
+      ansible.builtin.debug:
+        var: presentation_result
+
+    ####################################################################
+    # Task Name : Build dynamic hostgroup configurations
+    ####################################################################
+    - name: Build primary hostgroups list
+      ansible.builtin.set_fact:
+        primary_hostgroups: "{{ primary_hostgroups | default([]) + [
+          {
+            'name': item.0,
+            'port': item.1,
+            'enable_preferred_path': (item.0 in primary_servers)
+          }
+        ] }}"
+      loop: "{{ (primary_servers + secondary_servers) | product(ports) | list }}"
+
+    - name: Build secondary hostgroups list
+      ansible.builtin.set_fact:
+        secondary_hostgroups: "{{ secondary_hostgroups | default([]) + [
+          {
+            'name': item.0,
+            'port': item.1,
+            'enable_preferred_path': (item.0 in secondary_servers)
+          }
+        ] }}"
+      loop: "{{ (primary_servers + secondary_servers) | product(ports) | list }}"
+
+    - name: Debug primary hostgroups
+      ansible.builtin.debug:
+        var: primary_hostgroups
+
+    - name: Debug secondary hostgroups
+      ansible.builtin.debug:
+        var: secondary_hostgroups
+    - name: Wait for system to stabilize
+      pause:
+        seconds: 3
+
+    ####################################################################
+    # Task Name : Create GAD pair with cross path server configuration
+    ####################################################################
+    - name: Create GAD pair
+      hitachivantara.vspone_block.vsp.hv_gad:
+        state: "present"
+        connection_info: "{{ connection_info }}"
+        secondary_connection_info: "{{ secondary_connection_info }}"
+        spec:
+          copy_group_name: "{{ticket}}_copy_group"
+          copy_pair_name: "{{ticket}}_copy_pair"
+          primary_volume_id: "{{ldev_result.volume.ldev_id}}"
+          secondary_pool_id: 0
+          primary_hostgroups: "{{ primary_hostgroups }}"
+          secondary_hostgroups: "{{ secondary_hostgroups }}"
+          primary_resource_group_name: "HDRS-Gateway"
+          quorum_disk_id: 0
+          set_alua_mode: true
+          allocate_new_consistency_group: false
+      register: result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result
+
