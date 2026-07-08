@@ -1,0 +1,72 @@
+---
+# ###################################################################
+# Scenario 6 : Clean everything up.
+#  1. Delete the GAD pair AND its S-VOL on DC2
+#  2. Unmap the P-VOL from DC1-PROD-ESXi-100
+#  3. Delete the P-VOL (LDEV) on DC1
+# Destructive - runs only when you pass --tags cleanup.
+# Run: ansible-playbook 05_cleanup.yml --ask-vault-pass --tags cleanup
+# ###################################################################
+- name: Cleanup GAD pair and volumes
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - vault/storage_vars.yml
+    - vars/demo_vars.yml
+
+  vars:
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    secondary_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_secondary_storage_username }}"
+      password: "{{ vault_secondary_storage_secret }}"
+
+  tasks:
+    - name: Delete the GAD pair and the S-VOL on DC2
+      hitachivantara.vspone_block.vsp.hv_gad:
+        connection_info: "{{ connection_info }}"
+        secondary_connection_info: "{{ secondary_connection_info }}"
+        state: absent
+        spec:
+          copy_group_name: "{{ copy_group_name }}"
+          primary_volume_id: "{{ primary_volume_id }}"
+          should_delete_svol: true
+      register: gad_delete
+      ignore_errors: true
+      tags: [cleanup, never]
+
+    - name: Unmap the P-VOL from DC1-PROD-ESXi-100
+      hitachivantara.vspone_block.vsp.hv_hg:
+        connection_info: "{{ connection_info }}"
+        state: present
+        spec:
+          state: unpresent_ldev
+          name: "{{ dc1_fc_host }}"
+          port_id: "{{ dc1_port_id }}"
+          ldevs:
+            - "{{ primary_volume_id | int }}"
+      register: unmap_result
+      ignore_errors: true
+      tags: [cleanup, never]
+
+    - name: Delete the P-VOL (LDEV) on DC1
+      hitachivantara.vspone_block.vsp.hv_ldev:
+        connection_info: "{{ connection_info }}"
+        state: absent
+        spec:
+          ldev_id: "{{ primary_volume_id }}"
+      register: ldev_delete
+      ignore_errors: true
+      tags: [cleanup, never]
+
+    - name: Cleanup summary
+      ansible.builtin.debug:
+        msg:
+          gad_pair_deleted: "{{ gad_delete is not failed }}"
+          pvol_unmapped: "{{ unmap_result is not failed }}"
+          pvol_deleted: "{{ ldev_delete is not failed }}"
+      tags: [cleanup, never]

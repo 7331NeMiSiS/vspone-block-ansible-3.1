@@ -1,0 +1,31 @@
+---
+# ###################################################################
+# Scenario 1 : Ansible Vault
+#
+# The vault file itself is created/encrypted from the shell:
+#   ansible-vault create  vault/storage_vars.yml     # brand new
+#   ansible-vault encrypt vault/storage_vars.yml     # encrypt existing
+#   ansible-vault edit    vault/storage_vars.yml     # change values
+#
+# This playbook just proves the vault decrypts and the creds load.
+# Run:  ansible-playbook 00_verify_vault.yml --ask-vault-pass
+# ###################################################################
+- name: Verify vault decrypts and credentials are present
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - vault/storage_vars.yml
+
+  tasks:
+    - name: Confirm both arrays' connection details loaded
+      ansible.builtin.assert:
+        that:
+          - storage_address is defined
+          - vault_storage_username is defined
+          - vault_storage_secret is defined
+          - secondary_storage_address is defined
+          - vault_secondary_storage_username is defined
+          - vault_secondary_storage_secret is defined
+        success_msg: "Vault decrypted. DC1={{ storage_address }}  DC2={{ secondary_storage_address }}"
+        fail_msg: "Vault missing one or more required variables."

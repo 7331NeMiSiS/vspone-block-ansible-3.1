@@ -1,0 +1,61 @@
+---
+# Create 100GB volume 'advania' and attach to host ESXi-195 on CL1-A and CL2-A
+- name: Provision advania volume to ESXi-195
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+
+  vars:
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+    volume_name: "advania"
+    volume_size: "100GB"
+    pool_id: 0                  # <-- update to your target pool ID
+    host_group_name: "ESXi-195" # <-- must match existing host group name on storage
+    ports:
+      - "CL1-A"
+      - "CL2-A"
+
+  tasks:
+    # ---------------------------------------------------------------
+    # Create the LDEV
+    # ---------------------------------------------------------------
+    - name: Create volume '{{ volume_name }}' ({{ volume_size }})
+      hitachivantara.vspone_block.vsp.hv_ldev:
+        connection_info: "{{ connection_info }}"
+        state: present
+        spec:
+          name: "{{ volume_name }}"
+          size: "{{ volume_size }}"
+          pool_id: "{{ pool_id }}"
+          deduplication_compression_mode: "compression"
+      register: result_create_ldev
+
+    - name: Debug created volume
+      ansible.builtin.debug:
+        var: result_create_ldev
+
+    # ---------------------------------------------------------------
+    # Present the LDEV to the host group on each port
+    # ---------------------------------------------------------------
+    - name: Present '{{ volume_name }}' to {{ host_group_name }} on {{ item }}
+      hitachivantara.vspone_block.vsp.hv_hg:
+        connection_info: "{{ connection_info }}"
+        state: present
+        spec:
+          state: present_ldev
+          name: "{{ host_group_name }}"
+          port: "{{ item }}"
+          ldevs:
+            - "{{ result_create_ldev['volume']['ldev_id'] | int }}"
+      loop: "{{ ports }}"
+      register: result_present_ldev
+
+    - name: Debug present results
+      ansible.builtin.debug:
+        var: result_present_ldev

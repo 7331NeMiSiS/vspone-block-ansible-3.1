@@ -1,0 +1,87 @@
+---
+# ###################################################################
+# TrueCopy Replication — Handels volumes
+# DC1 (Primary)   192.168.180.133
+# DC2 (Secondary) 192.168.181.133
+#
+# Pairs:
+#   DC1 4003  →  DC2 357
+#   DC1 4004  →  DC2 362
+#   DC1 4005  →  DC2 356
+# ###################################################################
+- name: Create Handels TrueCopy pairs
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    # ── Credentials ──────────────────────────────────────────────
+    # Replace inline values with vault vars for production use:
+    #   username: "{{ vault_storage_username }}"
+    #   password: "{{ vault_storage_secret }}"
+    connection_info:
+      address: "192.168.181.133"
+      username: "maintenance"
+      password: "raid-maintenance"
+
+    secondary_connection_info:
+      address: "192.168.180.133"
+      username: "maintenance"
+      password: "raid-maintenance"
+
+    # ── Pair definitions ─────────────────────────────────────────
+    tc_pairs:
+      - copy_group_name: "Handels-TC-CG4003-357"
+        copy_pair_name:  "Handels-4003-357"
+        primary_volume_id:             4003
+        provisioned_secondary_volume_id: 357
+
+      - copy_group_name: "Handels-TC-CG4004-362"
+        copy_pair_name:  "Handels-4004-362"
+        primary_volume_id:             4004
+        provisioned_secondary_volume_id: 362
+
+      - copy_group_name: "Handels-TC-CG4005-356"
+        copy_pair_name:  "Handels-4005-356"
+        primary_volume_id:             4005
+        provisioned_secondary_volume_id: 356
+
+  tasks:
+    # ── Create pairs ─────────────────────────────────────────────
+    - name: Create TrueCopy pair {{ item.copy_pair_name }}
+      hitachivantara.vspone_block.vsp.hv_truecopy:
+        connection_info:           "{{ connection_info }}"
+        secondary_connection_info: "{{ secondary_connection_info }}"
+        state: present
+        spec:
+          copy_group_name:                 "{{ item.copy_group_name }}"
+          copy_pair_name:                  "{{ item.copy_pair_name }}"
+          primary_volume_id:               "{{ item.primary_volume_id }}"
+          provisioned_secondary_volume_id: "{{ item.provisioned_secondary_volume_id }}"
+          fence_level:       "NEVER"
+          do_initial_copy:   true
+      loop: "{{ tc_pairs }}"
+      loop_control:
+        label: "{{ item.copy_pair_name }}"
+      register: create_results
+
+    - name: Show results
+      ansible.builtin.debug:
+        msg: >-
+          {{ item.item.copy_pair_name }}:
+          {{ item.truecopy_pair.status | default('submitted') }}
+      loop: "{{ create_results.results }}"
+      loop_control:
+        label: "{{ item.item.copy_pair_name }}"
+
+    # ── Verify pair status ────────────────────────────────────────
+    - name: Get TrueCopy facts for copy group
+      hitachivantara.vspone_block.vsp.hv_truecopy_facts:
+        connection_info:           "{{ connection_info }}"
+        secondary_connection_info: "{{ secondary_connection_info }}"
+        spec:
+          copy_group_name: "Handels-TC-CG"
+      register: facts_result
+
+    - name: Show pair status
+      ansible.builtin.debug:
+        var: facts_result

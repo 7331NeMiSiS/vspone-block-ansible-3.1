@@ -1,0 +1,49 @@
+---
+# ###################################################################
+# Scenario 3a : Create GAD (P2V) pair - NON-UNIFORM
+#
+# Non-uniform = each host only accesses its LOCAL array.
+# So the S-VOL is exposed only to DC2-PROD-ESXi-28 on the DC2 array.
+# Only secondary_hostgroups is defined (no cross paths).
+#
+# Run: ansible-playbook 02a_create_gad_nonuniform.yml --ask-vault-pass
+# ###################################################################
+- name: Create GAD pair (non-uniform)
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - vault/storage_vars.yml
+    - vars/demo_vars.yml
+
+  vars:
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    secondary_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_secondary_storage_username }}"
+      password: "{{ vault_secondary_storage_secret }}"
+
+  tasks:
+    - name: Create non-uniform GAD pair to DC2
+      hitachivantara.vspone_block.vsp.hv_gad:
+        connection_info: "{{ connection_info }}"
+        secondary_connection_info: "{{ secondary_connection_info }}"
+        state: present
+        spec:
+          copy_group_name: "{{ copy_group_name }}"
+          copy_pair_name: "{{ copy_pair_name }}"
+          primary_volume_id: "{{ primary_volume_id }}"
+          secondary_pool_id: "{{ secondary_pool_id }}"
+          quorum_disk_id: "{{ quorum_disk_id }}"
+          secondary_hostgroups:
+            - name: "{{ dc2_fc_host }}"
+              port_id: "{{ dc2_port_id }}"
+              enable_preferred_path: false
+      register: result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result

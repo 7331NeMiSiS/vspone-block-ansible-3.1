@@ -7,6 +7,9 @@
   collections:
     - hitachivantara.vspone_block.vsp
 
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+
   tasks:
 ####################################################################
 # Task 6 : Get one ldev with detailed info

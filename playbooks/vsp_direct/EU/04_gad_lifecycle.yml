@@ -1,0 +1,113 @@
+---
+# ###################################################################
+# Scenario 5 : GAD lifecycle operations. Each op is tagged so you can
+# run them one at a time during the demo:
+#
+#   ansible-playbook 04_gad_lifecycle.yml --ask-vault-pass --tags state
+#   ansible-playbook 04_gad_lifecycle.yml --ask-vault-pass --tags pause
+#   ansible-playbook 04_gad_lifecycle.yml --ask-vault-pass --tags swap
+#   ansible-playbook 04_gad_lifecycle.yml --ask-vault-pass --tags delete
+#
+# pause  = split          swap = swap_split then swap_resync (roles reversed)
+# ###################################################################
+- name: GAD lifecycle
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - vault/storage_vars.yml
+    - vars/demo_vars.yml
+
+  vars:
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    secondary_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_secondary_storage_username }}"
+      password: "{{ vault_secondary_storage_secret }}"
+
+  tasks:
+    # ---- Get state -------------------------------------------------
+    - name: Get GAD pair state
+      hitachivantara.vspone_block.vsp.hv_gad_facts:
+        connection_info: "{{ connection_info }}"
+        secondary_connection_info: "{{ secondary_connection_info }}"
+        spec:
+          copy_group_name: "{{ copy_group_name }}"
+          copy_pair_name: "{{ copy_pair_name }}"
+      register: gad_state
+      tags: [state]
+
+    - name: Show GAD pair state
+      ansible.builtin.debug:
+        var: gad_state
+      tags: [state]
+
+    # ---- Pause (split) ---------------------------------------------
+    - name: Pause (split) the GAD pair
+      hitachivantara.vspone_block.vsp.hv_gad:
+        connection_info: "{{ connection_info }}"
+        secondary_connection_info: "{{ secondary_connection_info }}"
+        state: split
+        spec:
+          copy_group_name: "{{ copy_group_name }}"
+          copy_pair_name: "{{ copy_pair_name }}"
+      register: pause_result
+      tags: [pause, never]
+
+    - name: Show pause result
+      ansible.builtin.debug:
+        var: pause_result
+      tags: [pause, never]
+
+    # ---- Swap (reverse P/S roles) ----------------------------------
+    # connection_info / secondary_connection_info are reversed for swap:
+    # DC2 becomes the source, DC1 the target.
+    - name: Swap-split the GAD pair
+      hitachivantara.vspone_block.vsp.hv_gad:
+        connection_info: "{{ secondary_connection_info }}"   # DC2 (new source)
+        secondary_connection_info: "{{ connection_info }}"    # DC1 (new target)
+        state: swap_split
+        spec:
+          copy_group_name: "{{ copy_group_name }}"
+          copy_pair_name: "{{ copy_pair_name }}"
+      register: swap_split_result
+      tags: [swap, never]
+
+    - name: Swap-resync the GAD pair (DC2 now primary)
+      hitachivantara.vspone_block.vsp.hv_gad:
+        connection_info: "{{ secondary_connection_info }}"
+        secondary_connection_info: "{{ connection_info }}"
+        state: swap_resync
+        spec:
+          copy_group_name: "{{ copy_group_name }}"
+          copy_pair_name: "{{ copy_pair_name }}"
+      register: swap_resync_result
+      tags: [swap, never]
+
+    - name: Show swap result
+      ansible.builtin.debug:
+        msg:
+          swap_split: "{{ swap_split_result }}"
+          swap_resync: "{{ swap_resync_result }}"
+      tags: [swap, never]
+
+    # ---- Delete the pair (keeps the S-VOL) -------------------------
+    - name: Delete the GAD pair
+      hitachivantara.vspone_block.vsp.hv_gad:
+        connection_info: "{{ connection_info }}"
+        secondary_connection_info: "{{ secondary_connection_info }}"
+        state: absent
+        spec:
+          copy_group_name: "{{ copy_group_name }}"
+          primary_volume_id: "{{ primary_volume_id }}"
+          should_delete_svol: false
+      register: delete_result
+      tags: [delete, never]
+
+    - name: Show delete result
+      ansible.builtin.debug:
+        var: delete_result
+      tags: [delete, never]

@@ -1,8 +1,8 @@
 ---
 ####################################################################
-# Example : LDEV  Playbook
+# Create 100GB Volume and Attach to ESXi Hostgroup
 ####################################################################
-- name: Logical Device Module
+- name: Create Volume and Attach to Hostgroup
   hosts: localhost
   gather_facts: false
 
@@ -16,36 +16,58 @@
       username: "{{ vault_storage_username }}"
       password: "{{ vault_storage_secret }}"
 
+    volume_name: "william"
+    volume_size: "100GB"
+    pool_id: 0
+    hostgroup_name: "ESXi-195"
 
   tasks:
-
-    ###########################################################################
-    # Task 7 : Create ldev with capacity saving and data_reduction_share
-    ###########################################################################
-    - name: Create ldev with capacity saving and data_reduction_share
+    ####################################################################
+    # Task Name : Create 100GB volume 'william' in pool 0
+    ####################################################################
+    - name: Create 100GB volume 'william' in pool 0
       hitachivantara.vspone_block.vsp.hv_ldev:
         connection_info: "{{ connection_info }}"
-        storage_system_info:
-          serial: "{{ storage_serial }}"
         state: "present"
         spec:
-          pool_id: 0
-          size: "{{ ldev_size }}GB"
-          capacity_saving: "compression_deduplication"
-          data_reduction_share: "true"
-          name: "William"
-      register: ldev_create
+          pool_id: "{{ pool_id }}"
+          size: "{{ volume_size }}"
+          name: "{{ volume_name }}"
+      register: ldev_result
 
+    - name: Debug volume creation result
+      ansible.builtin.debug:
+        var: ldev_result
 
-    - debug:
-        var: ldev_create
+    - name: Extract created LDEV ID
+      set_fact:
+        created_ldev_id: "{{ ldev_result.ldev.ldev_id }}"
 
-    - name: "Set ldev_id for workflow"
-      set_stats:
-        data:
-          ldev_id:  "{{ ldev_create.volume.ldev_id }}"
+    ####################################################################
+    # Task Name : Attach volume to ESXi-195 hostgroup
+    ####################################################################
+    - name: Attach volume to ESXi-195 hostgroup
+      hitachivantara.vspone_block.vsp.hv_hg:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          state: "present_ldev"
+          name: "{{ hostgroup_name }}"
+          ldevs: ["{{ created_ldev_id }}"]
+      register: attach_result
 
-    - name: "Set NAA for workflow"
-      set_stats:
-        data:
-          vcenter_datastore_naa: "{{ ldev_create.volume.canonical_name }}"
+    - name: Debug attachment result
+      ansible.builtin.debug:
+        var: attach_result
+
+    ####################################################################
+    # Summary
+    ####################################################################
+    - name: Display summary
+      ansible.builtin.debug:
+        msg:
+          - "✓ Volume created: {{ volume_name }}"
+          - "✓ Size: {{ volume_size }}"
+          - "✓ Pool: {{ pool_id }}"
+          - "✓ LDEV ID: {{ created_ldev_id }}"
+          - "✓ Attached to: {{ hostgroup_name }}"

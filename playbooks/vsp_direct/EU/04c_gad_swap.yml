@@ -1,0 +1,52 @@
+---
+# ###################################################################
+# GAD lifecycle 3/4 : Swap the pair (reverse P/S roles)
+# Run: ansible-playbook 04c_gad_swap.yml -J
+# connection_info / secondary_connection_info are REVERSED for swap:
+# DC2 becomes the source, DC1 the target. Verify direction from host.
+# The pair must be in PAIR state before swapping.
+# ###################################################################
+- name: Swap GAD pair
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - vault/storage_vars.yml
+    - vars/demo_vars.yml
+
+  vars:
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    secondary_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_secondary_storage_username }}"
+      password: "{{ vault_secondary_storage_secret }}"
+
+  tasks:
+    - name: Swap-split the GAD pair
+      hitachivantara.vspone_block.vsp.hv_gad:
+        connection_info: "{{ secondary_connection_info }}"   # DC2 (new source)
+        secondary_connection_info: "{{ connection_info }}"    # DC1 (new target)
+        state: swap_split
+        spec:
+          copy_group_name: "{{ copy_group_name }}"
+          copy_pair_name: "{{ copy_pair_name }}"
+      register: swap_split_result
+
+    - name: Swap-resync the GAD pair (DC2 now primary)
+      hitachivantara.vspone_block.vsp.hv_gad:
+        connection_info: "{{ secondary_connection_info }}"
+        secondary_connection_info: "{{ connection_info }}"
+        state: swap_resync
+        spec:
+          copy_group_name: "{{ copy_group_name }}"
+          copy_pair_name: "{{ copy_pair_name }}"
+      register: swap_resync_result
+
+    - name: Show swap result
+      ansible.builtin.debug:
+        msg:
+          swap_split: "{{ swap_split_result }}"
+          swap_resync: "{{ swap_resync_result }}"

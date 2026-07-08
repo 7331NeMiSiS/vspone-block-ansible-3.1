@@ -1,0 +1,39 @@
+---
+# ###################################################################
+# Scenario 4 : Expand the GAD pair from 15GB to 50GB.
+# The module resizes both P-VOL and S-VOL online.
+# Run: ansible-playbook 03_expand_gad_pair.yml --ask-vault-pass
+# ###################################################################
+- name: Expand GAD pair
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - vault/storage_vars.yml
+    - vars/demo_vars.yml
+
+  vars:
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    secondary_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_secondary_storage_username }}"
+      password: "{{ vault_secondary_storage_secret }}"
+
+  tasks:
+    - name: Expand the pair to 50GB
+      hitachivantara.vspone_block.vsp.hv_gad:
+        connection_info: "{{ connection_info }}"
+        secondary_connection_info: "{{ secondary_connection_info }}"
+        state: expand
+        spec:
+          copy_group_name: "{{ copy_group_name }}"
+          copy_pair_name: "{{ copy_pair_name }}"
+          new_volume_size: "{{ expanded_size }}"
+      register: result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result

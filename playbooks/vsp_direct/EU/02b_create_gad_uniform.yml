@@ -1,0 +1,58 @@
+---
+# ###################################################################
+# Scenario 3b : Create GAD (P2V) pair - UNIFORM
+#
+# Uniform = the host cluster accesses BOTH arrays (cross paths).
+# Both primary and secondary host groups are defined so each host
+# has a path to DC1 and DC2. All paths are active/equal (no ALUA
+# preference), so enable_preferred_path is false on both sides.
+#
+# Run: ansible-playbook 02b_create_gad_uniform.yml --ask-vault-pass
+# ###################################################################
+- name: Create GAD pair (uniform)
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - vault/storage_vars.yml
+    - vars/demo_vars.yml
+
+  vars:
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    secondary_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_secondary_storage_username }}"
+      password: "{{ vault_secondary_storage_secret }}"
+
+  tasks:
+    - name: Build DC1 host group list (one entry per port)
+      ansible.builtin.set_fact:
+        dc1_hostgroups: "{{ dc1_hostgroups | default([]) + [{'name': dc1_fc_host, 'port_id': item, 'enable_preferred_path': false}] }}"
+      loop: "{{ dc1_port_ids }}"
+
+    - name: Build DC2 host group list (one entry per port)
+      ansible.builtin.set_fact:
+        dc2_hostgroups: "{{ dc2_hostgroups | default([]) + [{'name': dc2_fc_host, 'port_id': item, 'enable_preferred_path': false}] }}"
+      loop: "{{ dc2_port_ids }}"
+
+    - name: Create uniform GAD pair (cross-connected host groups)
+      hitachivantara.vspone_block.vsp.hv_gad:
+        connection_info: "{{ connection_info }}"
+        secondary_connection_info: "{{ secondary_connection_info }}"
+        state: present
+        spec:
+          copy_group_name: "{{ copy_group_name }}"
+          copy_pair_name: "{{ copy_pair_name }}"
+          primary_volume_id: "{{ primary_volume_id }}"
+          secondary_pool_id: "{{ secondary_pool_id }}"
+          quorum_disk_id: "{{ quorum_disk_id }}"
+          primary_hostgroups: "{{ dc1_hostgroups }}"
+          secondary_hostgroups: "{{ dc2_hostgroups }}"
+      register: result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result

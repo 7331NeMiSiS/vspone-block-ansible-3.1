@@ -1,0 +1,65 @@
+---
+# ###################################################################
+# Scenario 3c : Create GAD (P2V) pair - UNIFORM OPTIMIZED (ALUA)
+#
+# Uniform optimized = uniform (cross paths to both arrays) PLUS ALUA,
+# so each host prefers its LOCAL array (optimized path) and only uses
+# the cross-site path when the local one is down (non-optimized).
+#   set_alua_mode: true
+#   enable_preferred_path: true on each host's LOCAL host group
+#
+# Run: ansible-playbook 02c_create_gad_uniform_optimized.yml --ask-vault-pass
+# ###################################################################
+- name: Create GAD pair (uniform optimized / ALUA)
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - vault/storage_vars.yml
+    - vars/demo_vars.yml
+
+  vars:
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    secondary_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_secondary_storage_username }}"
+      password: "{{ vault_secondary_storage_secret }}"
+    # Resource group that owns the P-VOL on DC1. "meta_resource" is the
+    # default group; change if the P-VOL lives in a custom resource group.
+    primary_resource_group_name: "meta_resource"
+
+  tasks:
+    # enable_preferred_path: true marks each host's LOCAL array path as optimized.
+    - name: Build DC1 host group list (local = optimized)
+      ansible.builtin.set_fact:
+        dc1_hostgroups: "{{ dc1_hostgroups | default([]) + [{'name': dc1_fc_host, 'port_id': item, 'enable_preferred_path': true}] }}"
+      loop: "{{ dc1_port_ids }}"
+
+    - name: Build DC2 host group list (local = optimized)
+      ansible.builtin.set_fact:
+        dc2_hostgroups: "{{ dc2_hostgroups | default([]) + [{'name': dc2_fc_host, 'port_id': item, 'enable_preferred_path': true}] }}"
+      loop: "{{ dc2_port_ids }}"
+
+    - name: Create uniform-optimized GAD pair with ALUA
+      hitachivantara.vspone_block.vsp.hv_gad:
+        connection_info: "{{ connection_info }}"
+        secondary_connection_info: "{{ secondary_connection_info }}"
+        state: present
+        spec:
+          copy_group_name: "{{ copy_group_name }}"
+          copy_pair_name: "{{ copy_pair_name }}"
+          primary_volume_id: "{{ primary_volume_id }}"
+          secondary_pool_id: "{{ secondary_pool_id }}"
+          quorum_disk_id: "{{ quorum_disk_id }}"
+          set_alua_mode: true
+          primary_resource_group_name: "{{ primary_resource_group_name }}"
+          primary_hostgroups: "{{ dc1_hostgroups }}"
+          secondary_hostgroups: "{{ dc2_hostgroups }}"
+      register: result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result

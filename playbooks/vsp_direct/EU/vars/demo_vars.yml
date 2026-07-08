@@ -1,0 +1,33 @@
+---
+# ###################################################################
+# Shared demo variables. Adjust the port IDs to match your fabric.
+# ###################################################################
+
+# ---- Volume (DC1 / P-VOL) ----
+dc1_pool_id: 0
+volume_name: "DEMO-EU-VOL"
+volume_size: "15GB"
+expanded_size: "50GB"
+
+# ---- FC hosts (these are the FC host GROUP names on each array) ----
+dc1_fc_host: "DC1-PROD-ESXi-100"     # DC1 host group (same name on every port)
+dc1_port_ids:                        # DC1 array FC ports
+  - "CL1-A"
+  - "CL2-A"
+
+dc2_fc_host: "DC2-PROD-ESXi-28"      # DC2 host group (same name on every port)
+dc2_port_ids:                        # DC2 array FC ports
+  - "CL3-A"
+  - "CL4-A"
+
+# ---- GAD ----
+secondary_pool_id: 0                  # pool on DC2 for the S-VOL
+quorum_disk_id: 1                     # quorum disk ID registered on both arrays
+copy_group_name: "DEMO-GAD-CG"
+copy_pair_name: "DEMO-GAD-PAIR"
+
+# ###################################################################
+# Set this AFTER running 01_create_fc_volume.yml (it prints the ID).
+# All GAD playbooks use it as the primary_volume_id.
+# ###################################################################
+primary_volume_id: 452

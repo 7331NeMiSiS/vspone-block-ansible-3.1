@@ -1,0 +1,37 @@
+---
+# ###################################################################
+# GAD lifecycle 1/4 : Get pair state
+# Run: ansible-playbook 04a_gad_get_state.yml -J
+# Read the pair status here, then confirm the same from the host.
+# ###################################################################
+- name: Get GAD pair state
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - vault/storage_vars.yml
+    - vars/demo_vars.yml
+
+  vars:
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    secondary_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_secondary_storage_username }}"
+      password: "{{ vault_secondary_storage_secret }}"
+
+  tasks:
+    - name: Get GAD pair state
+      hitachivantara.vspone_block.vsp.hv_gad_facts:
+        connection_info: "{{ connection_info }}"
+        secondary_connection_info: "{{ secondary_connection_info }}"
+        spec:
+          copy_group_name: "{{ copy_group_name }}"
+          copy_pair_name: "{{ copy_pair_name }}"
+      register: gad_state
+
+    - name: Show GAD pair state
+      ansible.builtin.debug:
+        var: gad_state

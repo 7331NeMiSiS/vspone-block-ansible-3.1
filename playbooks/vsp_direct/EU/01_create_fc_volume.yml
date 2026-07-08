@@ -1,0 +1,50 @@
+---
+# ###################################################################
+# Scenario 2 : Create a 15GB volume from Pool 0 and attach it to
+#              FC host group DC1-PROD-ESXi-100 on the DC1 array.
+# Run: ansible-playbook 01_create_fc_volume.yml --ask-vault-pass
+# ###################################################################
+- name: Create and attach FC volume on DC1
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - vault/storage_vars.yml
+    - vars/demo_vars.yml
+
+  vars:
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+    - name: Create the 15GB volume from Pool 0
+      hitachivantara.vspone_block.vsp.hv_ldev:
+        connection_info: "{{ connection_info }}"
+        state: present
+        spec:
+          pool_id: "{{ dc1_pool_id }}"
+          size: "{{ volume_size }}"
+          name: "{{ volume_name }}"
+      register: created_ldev
+
+    - name: Attach the volume to FC host DC1-PROD-ESXi-100 on each port
+      hitachivantara.vspone_block.vsp.hv_hg:
+        connection_info: "{{ connection_info }}"
+        state: present
+        spec:
+          state: present_ldev
+          name: "{{ dc1_fc_host }}"
+          port_id: "{{ item }}"
+          ldevs:
+            - "{{ created_ldev.volume.ldev_id | int }}"
+      loop: "{{ dc1_port_ids }}"
+      register: attach_result
+
+    - name: Show the new LDEV ID  (put this in vars/demo_vars.yml -> primary_volume_id)
+      ansible.builtin.debug:
+        msg: >-
+          Created LDEV {{ created_ldev.volume.ldev_id }}
+          ({{ volume_size }}) attached to {{ dc1_fc_host }} on {{ dc1_port_ids | join(', ') }}.
+          Set  primary_volume_id: {{ created_ldev.volume.ldev_id }}  in vars/demo_vars.yml

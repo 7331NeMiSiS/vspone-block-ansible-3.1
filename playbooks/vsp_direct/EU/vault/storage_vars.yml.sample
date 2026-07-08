@@ -1,0 +1,19 @@
+---
+# ###################################################################
+# Credentials for both arrays. ENCRYPT THIS FILE WITH ANSIBLE VAULT.
+#   ansible-vault encrypt vault/storage_vars.yml
+#   ansible-vault edit    vault/storage_vars.yml
+# Run playbooks with:  --ask-vault-pass   (or --vault-password-file)
+# ###################################################################
+
+# ---- DC1 / Primary array (P-VOL side) ----
+storage_address: 192.168.180.85          # REST API IP or FQDN of DC1 array
+storage_serial: 840130              # optional
+vault_storage_username: maintenance
+vault_storage_secret: raid-maintenance
+
+# ---- DC2 / Secondary array (S-VOL side) ----
+secondary_storage_address: 192.168.183.85   # REST API IP or FQDN of DC2 array
+secondary_storage_serial: 840183       # optional
+vault_secondary_storage_username: maintenance
+vault_secondary_storage_secret: raid-maintenance
