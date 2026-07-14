@@ -122,11 +122,21 @@
         ansible_port: "{{ windows_port }}"
         ansible_winrm_transport: ntlm
         ansible_winrm_server_cert_validation: ignore
+        # Fail fast on unresponsive hosts instead of hanging the whole run.
+        # read_timeout_sec must be greater than operation_timeout_sec.
+        ansible_winrm_connection_timeout: 20
+        ansible_winrm_operation_timeout_sec: 30
+        ansible_winrm_read_timeout_sec: 40
       loop: "{{ vm_ip_map | dict2items }}"
       register: cleanup_result
       ignore_errors: yes
+      ignore_unreachable: yes
 
     - name: Display cleanup results
       debug:
-        msg: "VM: {{ item.item.key }} ({{ item.item.value }}) - {{ item.output }}"
+        msg: >-
+          VM: {{ item.item.key }} ({{ item.item.value }}) -
+          {{ item.output | default(item.msg) | default('no output / host failed') }}
       loop: "{{ cleanup_result.results }}"
+      loop_control:
+        label: "{{ item.item.key }}"
