@@ -83,24 +83,60 @@
       debug:
         msg: "Found {{ vm_ip_map | length }} VMs - {{ vm_ip_map }}"
 
+    # Put each discovered IP into an in-memory inventory group so the cleanup
+    # runs as a real per-host play. Ansible isolates hosts: one failing does
+    # not stop the others (unlike a loop, which aborts on a transport error).
+    - name: Add target VMs to in-memory inventory
+      ansible.builtin.add_host:
+        name: "{{ item.value }}"
+        groups: windows_targets
+        vm_name: "{{ item.key }}"
+      loop: "{{ vm_ip_map | dict2items }}"
+      changed_when: false
+
+# ###################################################################
+# Second play: clean each Windows host independently.
+# A WinRM failure on one host is isolated and does not stop the rest.
+# ###################################################################
+- name: Remove infection files from target VMs
+  hosts: windows_targets
+  gather_facts: no
+  ignore_unreachable: yes
+
+  vars:
+    ansible_connection: winrm
+    ansible_user: "{{ hostvars['localhost']['windows_user'] }}"
+    ansible_password: "{{ hostvars['localhost']['windows_password'] }}"
+    ansible_port: "{{ hostvars['localhost']['windows_port'] }}"
+    ansible_winrm_transport: ntlm
+    ansible_winrm_server_cert_validation: ignore
+    # Fail fast on unresponsive hosts instead of hanging the whole run.
+    # read_timeout_sec must be greater than operation_timeout_sec.
+    ansible_winrm_connection_timeout: 20
+    ansible_winrm_operation_timeout_sec: 30
+    ansible_winrm_read_timeout_sec: 40
+    file_names: "{{ hostvars['localhost']['file_names'] }}"
+    target_directories: "{{ hostvars['localhost']['target_directories'] }}"
+
+  tasks:
     - name: Check and remove files from all locations
       ansible.windows.win_powershell:
         script: |
           $fileNames = @("{{ file_names | join('", "') }}")
           $targetDirectories = @("{{ target_directories | join('", "') }}")
-          
+
           $filesFound = 0
           $filesDeleted = 0
-          
+
           foreach ($directory in $targetDirectories) {
               if (Test-Path -Path $directory) {
                   foreach ($fileName in $fileNames) {
                       $filePath = Join-Path -Path $directory -ChildPath $fileName
-                      
+
                       if (Test-Path -Path $filePath) {
                           $filesFound++
                           Write-Output "Found: $filePath"
-                          
+
                           try {
                               Remove-Item -Path $filePath -Force -ErrorAction Stop
                               $filesDeleted++
@@ -112,31 +148,11 @@
                   }
               }
           }
-          
+
           Write-Output "Summary: Found $filesFound files, Deleted $filesDeleted files"
-      delegate_to: "{{ item.value }}"
-      vars:
-        ansible_connection: winrm
-        ansible_user: "{{ windows_user }}"
-        ansible_password: "{{ windows_password }}"
-        ansible_port: "{{ windows_port }}"
-        ansible_winrm_transport: ntlm
-        ansible_winrm_server_cert_validation: ignore
-        # Fail fast on unresponsive hosts instead of hanging the whole run.
-        # read_timeout_sec must be greater than operation_timeout_sec.
-        ansible_winrm_connection_timeout: 20
-        ansible_winrm_operation_timeout_sec: 30
-        ansible_winrm_read_timeout_sec: 40
-      loop: "{{ vm_ip_map | dict2items }}"
       register: cleanup_result
       ignore_errors: yes
-      ignore_unreachable: yes
 
-    - name: Display cleanup results
+    - name: Display cleanup result for this host
       debug:
-        msg: >-
-          VM: {{ item.item.key }} ({{ item.item.value }}) -
-          {{ item.output | default(item.msg) | default('no output / host failed') }}
-      loop: "{{ cleanup_result.results }}"
-      loop_control:
-        label: "{{ item.item.key }}"
+        msg: "VM: {{ vm_name }} ({{ inventory_hostname }}) - {{ cleanup_result.output | default(cleanup_result.msg) | default('no output / host failed') }}"
