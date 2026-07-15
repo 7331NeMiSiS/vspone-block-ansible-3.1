@@ -73,6 +73,7 @@
       ansible.windows.win_stat:
         path: "{{ script_path }}"
       delegate_to: "{{ item.value }}"
+      ignore_unreachable: yes
       vars:
         ansible_connection: winrm
         ansible_user: "{{ windows_user }}"
