@@ -98,6 +98,7 @@
       ansible.windows.win_shell: |
         & "{{ script_path }}"
       delegate_to: "{{ item.value }}"
+      ignore_unreachable: yes
       vars:
         ansible_connection: winrm
         ansible_user: "{{ windows_user }}"
@@ -116,6 +117,7 @@
         pre_reboot_delay: 10
         post_reboot_delay: 45
       delegate_to: "{{ item.value }}"
+      ignore_unreachable: yes
       vars:
         ansible_connection: winrm
         ansible_user: "{{ windows_user }}"
