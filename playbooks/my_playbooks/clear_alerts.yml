@@ -143,14 +143,23 @@
         # One request for the whole set: the endpoint is natively bulk, and an
         # appliance whose day job is scanning backups doesn't need N round trips.
         # clear:1 marks actioned, clear:0 puts them back.
+        # ⚠️ The body is built with `to_json` INSIDE one Jinja expression, on
+        # purpose. Ansible templates a task argument to a STRING unless
+        # jinja2_native is on, so the obvious form:
+        #     body:
+        #       clear: "{{ 1 if cs_mode == 'clear' else 0 }}"
+        # sends {"clear": "1"} and the appliance rejects it with
+        #     '1' is not of type 'integer' - 'clear'
+        # Building the dict inside the expression keeps 1 an int, and to_json
+        # serialises it before Ansible can stringify anything. uri passes a string
+        # body through as pre-formatted JSON. This then works from ANY directory,
+        # with or without ansible.cfg — correctness must not depend on cwd.
         - name: "{{ 'Clear' if cs_mode == 'clear' else 'Restore' }} {{ cs_ids | length }} alert(s)"
           ansible.builtin.uri:
             url: "{{ cs_api }}/notifications"
             method: PATCH
             body_format: json
-            body:
-              clear: "{{ 1 if cs_mode == 'clear' else 0 }}"
-              ids: "{{ cs_ids }}"
+            body: "{{ {'clear': (1 if cs_mode == 'clear' else 0), 'ids': cs_ids} | to_json }}"
             headers:
               sessionId: "{{ cs_sid }}"
             validate_certs: "{{ cs_validate_certs }}"
