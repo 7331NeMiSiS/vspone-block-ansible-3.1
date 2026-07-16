@@ -1,0 +1,209 @@
+---
+# ═══════════════════════════════════════════════════════════════════════════
+# Clear (or restore) CyberSense alerts — demo reset
+#
+# Makes the clean → Malware → Encryption → repeat cycle rerunnable. Between runs
+# the Alerts page still carries the previous cycle's findings, so the next demo
+# opens dirty. This clears them.
+#
+#   Clear every pending alert:
+#     ansible-playbook clear_alerts.yml -e cs_host=192.168.181.131 -e cs_password=...
+#
+#   Preview, change nothing:
+#     ansible-playbook clear_alerts.yml -e cs_host=... -e cs_password=... --check
+#
+#   Put them back (clearing is reversible — same endpoint, clear:0):
+#     ansible-playbook clear_alerts.yml -e cs_host=... -e cs_password=... -e cs_mode=restore
+#
+#   Only one cycle's policy / hosts:
+#     -e cs_policy=TRM-Policy
+#     -e cs_host_filter=casino-
+#
+# ── What this does NOT do (read before relying on it) ──────────────────────
+# Clearing marks an alert *actioned*. It does NOT delete the finding, change a
+# snapshot's verdict, or remove anything from the volume. The Snapshots page will
+# still show Suspect/Alert for scans that already ran, because those verdicts are
+# a property of the backupset, not of the alert.
+#
+# So a full "back to clean" reset is:
+#   1. restore the VMs/volumes to a clean state
+#   2. run the policy so a fresh CLEAN scan exists
+#   3. run this playbook to clear the old alerts   ← you are here
+# This is step 3, not the whole reset.
+# ═══════════════════════════════════════════════════════════════════════════
+- name: CyberSense — clear pending alerts (demo reset)
+  hosts: localhost
+  gather_facts: false
+  connection: local
+
+  vars:
+    # Required
+    cs_host: "{{ undef('cs_host is required, e.g. -e cs_host=192.168.181.131') }}"
+    cs_password: "{{ undef('cs_password is required (use a vault)') }}"
+    # Optional
+    cs_user: admin
+    cs_validate_certs: false        # appliances ship a self-signed cert
+    cs_mode: clear                  # clear | restore
+    cs_policy: ""                   # only alerts whose policyname matches (regex)
+    cs_host_filter: ""              # only alerts whose host matches (regex)
+    cs_api: "https://{{ cs_host }}/ierest/v1"
+
+  tasks:
+    - name: Validate inputs
+      ansible.builtin.assert:
+        that:
+          - cs_mode in ['clear', 'restore']
+        fail_msg: "cs_mode must be 'clear' or 'restore' (got '{{ cs_mode }}')"
+        quiet: true
+
+    # ── auth ───────────────────────────────────────────────────────────────
+    # The password crosses the wire in the request BODY; TLS is the only thing
+    # protecting it and the cert is self-signed by default. Keep cs_password in a
+    # vault, never in inventory. no_log keeps it out of the Ansible log.
+    - name: Log in
+      ansible.builtin.uri:
+        url: "{{ cs_api }}/sessions"
+        method: POST
+        body_format: json
+        body:
+          user_name: "{{ cs_user }}"
+          password: "{{ cs_password }}"
+        headers:
+          sessionId: ""             # the UI literally sends an empty header here
+        validate_certs: "{{ cs_validate_certs }}"
+        status_code: [200, 201]
+      register: cs_login
+      no_log: true
+      check_mode: false             # must run under --check too, or we read nothing
+
+    - name: Keep the session id
+      ansible.builtin.set_fact:
+        cs_sid: "{{ cs_login.json.sessionid }}"    # NB lowercase in the response
+      no_log: true
+
+    # Everything below runs in a block so the session is always revoked, even on
+    # failure — each one holds a slot on the appliance until it idles out.
+    - block:
+        # ── read ───────────────────────────────────────────────────────────
+        - name: Fetch alerts
+          ansible.builtin.uri:
+            url: "{{ cs_api }}/notifications?current_index"
+            method: GET
+            headers:
+              sessionId: "{{ cs_sid }}"
+            validate_certs: "{{ cs_validate_certs }}"
+          register: cs_alerts
+          check_mode: false
+
+        # An alert is cleared iff it carries a `cleartime` — the appliance's own
+        # definition, so this is an exact split rather than matching a label.
+        #
+        # `Low/No disk space` notifications ride this same feed but describe the
+        # appliance's own disk, not a scan. They are left alone: clearing them
+        # would hide a real capacity warning about the box itself.
+        - name: Select the alerts to act on
+          ansible.builtin.set_fact:
+            cs_selected: >-
+              {{ cs_alerts.json
+                 | rejectattr('type', 'match', '(?i).*disk space.*')
+                 | selectattr('policyname', 'defined')
+                 | selectattr('policyname', 'search', cs_policy)
+                 | selectattr('host', 'defined')
+                 | selectattr('host', 'search', cs_host_filter)
+                 | selectattr('cleartime', 'truthy' if cs_mode == 'restore' else 'falsy')
+                 | list }}
+
+        - name: Collect their ids
+          ansible.builtin.set_fact:
+            cs_ids: "{{ cs_selected | map(attribute='id') | map('int') | list }}"
+
+        - name: Summarise
+          ansible.builtin.debug:
+            msg: >-
+              {{ cs_alerts.json | length }} alert(s) on {{ cs_host }} ·
+              {{ cs_alerts.json | selectattr('cleartime', 'falsy') | list | length }} pending ·
+              {{ cs_ids | length }} to {{ cs_mode }}
+              {{ '· policy~' ~ cs_policy if cs_policy else '' }}
+              {{ '· host~' ~ cs_host_filter if cs_host_filter else '' }}
+
+        - name: List them
+          ansible.builtin.debug:
+            msg: "[{{ item.id }}] {{ item.host | default('?') }} · {{ item.type | default('?') }} · {{ item.policyname | default('?') }}"
+          loop: "{{ cs_selected }}"
+          loop_control:
+            label: "{{ item.id }}"
+          when: cs_ids | length > 0
+
+        - name: Nothing to do
+          ansible.builtin.debug:
+            msg: "No alerts to {{ cs_mode }} — already in the desired state."
+          when: cs_ids | length == 0
+
+        # ── write ──────────────────────────────────────────────────────────
+        # One request for the whole set: the endpoint is natively bulk, and an
+        # appliance whose day job is scanning backups doesn't need N round trips.
+        # clear:1 marks actioned, clear:0 puts them back.
+        - name: "{{ 'Clear' if cs_mode == 'clear' else 'Restore' }} {{ cs_ids | length }} alert(s)"
+          ansible.builtin.uri:
+            url: "{{ cs_api }}/notifications"
+            method: PATCH
+            body_format: json
+            body:
+              clear: "{{ 1 if cs_mode == 'clear' else 0 }}"
+              ids: "{{ cs_ids }}"
+            headers:
+              sessionId: "{{ cs_sid }}"
+            validate_certs: "{{ cs_validate_certs }}"
+            status_code: [200, 204]
+          when:
+            - cs_ids | length > 0
+            - not ansible_check_mode
+          changed_when: true
+
+        # ── verify ─────────────────────────────────────────────────────────
+        # Don't trust the 200 — re-read and prove the state actually moved. (The
+        # first time I drove this endpoint by hand it reported success while the
+        # alert stayed pending, because I was reading a cached view.)
+        - name: Re-read alerts
+          ansible.builtin.uri:
+            url: "{{ cs_api }}/notifications?current_index"
+            method: GET
+            headers:
+              sessionId: "{{ cs_sid }}"
+            validate_certs: "{{ cs_validate_certs }}"
+          register: cs_after
+          when: not ansible_check_mode
+          check_mode: false
+
+        - name: Confirm the change landed
+          ansible.builtin.assert:
+            that:
+              - >-
+                cs_after.json
+                | selectattr('id', 'in', cs_ids)
+                | selectattr('cleartime', 'falsy' if cs_mode == 'clear' else 'truthy')
+                | list | length == 0
+            fail_msg: >-
+              The appliance returned success but the alerts did not change state.
+              Check the account has the "Clear alerts" privilege (Alert Management).
+            success_msg: >-
+              {{ cs_ids | length }} alert(s) {{ cs_mode }}ed ·
+              now {{ cs_after.json | selectattr('cleartime', 'falsy') | list | length }} pending,
+              {{ cs_after.json | selectattr('cleartime', 'truthy') | list | length }} cleared
+          when:
+            - not ansible_check_mode
+            - cs_ids | length > 0
+
+      always:
+        # Revoke rather than let it idle out — each session holds a slot.
+        - name: Log out
+          ansible.builtin.uri:
+            url: "{{ cs_api }}/sessions/{{ cs_sid }}"
+            method: DELETE
+            headers:
+              sessionId: "{{ cs_sid }}"
+            validate_certs: "{{ cs_validate_certs }}"
+            status_code: [200, 204, 404]
+          failed_when: false
+          check_mode: false
+          no_log: true
