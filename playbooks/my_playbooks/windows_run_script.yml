@@ -80,6 +80,7 @@
         ansible_password: "{{ windows_password }}"
         ansible_port: "{{ windows_port }}"
         ansible_winrm_transport: ntlm
+        ansible_winrm_proxy: ""
         ansible_winrm_server_cert_validation: ignore
       loop: "{{ vm_ip_map | dict2items }}"
       register: script_file
@@ -92,8 +93,8 @@
           - "Script found: {{ script_path }}"
           - "Size: {{ item.stat.size }} bytes"
           - "Last modified: {{ item.stat.lastwritetime }}"
-      loop: "{{ script_file.results }}"
-      when: item.stat.exists
+      loop: "{{ script_file.results | default([]) }}"       # <-- default([])
+      when: item.stat.exists | default(false)                # <-- default(false)
     
     - name: Execute PowerShell script
       ansible.windows.win_shell: |
