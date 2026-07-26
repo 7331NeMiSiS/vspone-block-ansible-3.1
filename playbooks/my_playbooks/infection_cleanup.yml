@@ -1,5 +1,5 @@
 ---
-- name: Cleanup files created by random file playbook
+- name: Discover target VMs in vCenter
   hosts: localhost
   gather_facts: no
   connection: local
@@ -12,7 +12,7 @@
       - "Windows-Target-VM-1"
       - "Windows-Target-VM-2"
       - "Windows-Target-VM-3"
-    
+
     windows_user: "Administrator"
     windows_password: "YourPasswordHere"
     windows_port: 5985
@@ -73,26 +73,36 @@
         status_code: 200
       loop: "{{ target_vms }}"
       register: vm_network_results
+      failed_when: false
 
+    # default('') keeps a VM without running VMware Tools from aborting the play
     - name: Build VM to IP mapping
       set_fact:
-        vm_ip_map: "{{ vm_ip_map | default({}) | combine({item.item.name: (item.json | map(attribute='ip.ip_addresses') | flatten | selectattr('ip_address', 'match', '^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$') | map(attribute='ip_address') | first)}) }}"
+        vm_ip_map: "{{ vm_ip_map | default({}) | combine({item.item.name: (item.json | map(attribute='ip.ip_addresses') | flatten | selectattr('ip_address', 'match', '^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$') | map(attribute='ip_address') | first | default('')) }) }}"
       loop: "{{ vm_network_results.results }}"
+      when: item.json is defined
 
     - name: Display target VMs and IPs
       debug:
-        msg: "Found {{ vm_ip_map | length }} VMs - {{ vm_ip_map }}"
+        msg: "Found {{ vm_ip_map | default({}) | length }} VMs - {{ vm_ip_map | default({}) }}"
 
-    # Put each discovered IP into an in-memory inventory group so the cleanup
-    # runs as a real per-host play. Ansible isolates hosts: one failing does
-    # not stop the others (unlike a loop, which aborts on a transport error).
+    # Play vars do not survive a play boundary, and hostvars['localhost'] only
+    # exposes facts / set_fact / registered vars. Credentials and file lists are
+    # therefore handed to each target as real host vars here.
     - name: Add target VMs to in-memory inventory
       ansible.builtin.add_host:
         name: "{{ item.value }}"
         groups: windows_targets
         vm_name: "{{ item.key }}"
-      loop: "{{ vm_ip_map | dict2items }}"
+        ansible_user: "{{ windows_user }}"
+        ansible_password: "{{ windows_password }}"
+        ansible_port: "{{ windows_port }}"
+        file_names: "{{ file_names }}"
+        target_directories: "{{ target_directories }}"
+      loop: "{{ vm_ip_map | default({}) | dict2items }}"
+      when: item.value | length > 0
       changed_when: false
+      no_log: true
 
 # ###################################################################
 # Second play: clean each Windows host independently.
@@ -105,9 +115,6 @@
 
   vars:
     ansible_connection: winrm
-    ansible_user: "{{ hostvars['localhost']['windows_user'] }}"
-    ansible_password: "{{ hostvars['localhost']['windows_password'] }}"
-    ansible_port: "{{ hostvars['localhost']['windows_port'] }}"
     ansible_winrm_transport: ntlm
     ansible_winrm_server_cert_validation: ignore
     # Fail fast on unresponsive hosts instead of hanging the whole run.
@@ -115,13 +122,10 @@
     ansible_winrm_connection_timeout: 20
     ansible_winrm_operation_timeout_sec: 30
     ansible_winrm_read_timeout_sec: 40
-    file_names: "{{ hostvars['localhost']['file_names'] }}"
-    target_directories: "{{ hostvars['localhost']['target_directories'] }}"
 
   tasks:
     - name: Check and remove files from all locations
       ansible.windows.win_powershell:
-        port: "{{ hostvars['localhost']['windows_port'] }}"
         script: |
           $fileNames = @("{{ file_names | join('", "') }}")
           $targetDirectories = @("{{ target_directories | join('", "') }}")
@@ -156,4 +160,4 @@
 
     - name: Display cleanup result for this host
       debug:
-        msg: "VM: {{ vm_name }} ({{ inventory_hostname }}) - {{ cleanup_result.output | default(cleanup_result.msg) | default('no output / host failed') }}"
+        msg: "VM: {{ vm_name }} ({{ inventory_hostname }})\n{{ cleanup_result.output | default([cleanup_result.msg | default('no output / host failed')]) | join('\n') }}"
