@@ -121,6 +121,7 @@
   tasks:
     - name: Check and remove files from all locations
       ansible.windows.win_powershell:
+        port: "{{ hostvars['localhost']['windows_port'] }}"
         script: |
           $fileNames = @("{{ file_names | join('", "') }}")
           $targetDirectories = @("{{ target_directories | join('", "') }}")
