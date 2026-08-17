@@ -1,0 +1,69 @@
+---
+- name: Replace Casino VMs from Casino-App-98
+  hosts: localhost
+  gather_facts: false
+  vars:
+    vcenter_host: "{{ lookup('env', 'VCENTER_HOST') }}"
+    vcenter_user: "{{ lookup('env', 'VCENTER_USER') }}"
+    vcenter_password: "{{ lookup('env', 'VCENTER_PASS') }}"
+    datacenter: "YOUR_DATACENTER"
+    source_vm: "Casino-App-98"
+    clone_power_state: poweredon
+    target_vms:
+      - Casino-AD01
+      - Casino-App-02
+      - Casino-App-03
+      - Casino-App-06
+      - Casino-MX01
+      - Casino-WEB-01
+      - Casino-WEB-02
+      - Casino-WEB-03
+      - Casino-WEB-04
+      - Casino-WEB-05
+      - Casino-WEB-06
+
+  tasks:
+    - name: Delete existing VMs
+      community.vmware.vmware_guest:
+        hostname: "{{ vcenter_host }}"
+        username: "{{ vcenter_user }}"
+        password: "{{ vcenter_password }}"
+        validate_certs: false
+        datacenter: "{{ datacenter }}"
+        name: "{{ item }}"
+        state: absent
+        force: true
+      loop: "{{ target_vms }}"
+      register: delete_result
+      ignore_errors: true
+
+    - name: Clone VM
+      community.vmware.vmware_guest:
+        hostname: "{{ vcenter_host }}"
+        username: "{{ vcenter_user }}"
+        password: "{{ vcenter_password }}"
+        validate_certs: false
+        datacenter: "{{ datacenter }}"
+        name: "{{ item.item }}"
+        template: "{{ source_vm }}"
+        cluster: Production
+        resource_pool: Casino
+        datastore: Casino-DS01
+        folder: Casino
+        state: "{{ clone_power_state }}"
+      loop: "{{ delete_result.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      when: not item.failed
+      register: clone_result
+      ignore_errors: true
+
+    - name: Report
+      vars:
+        delete_failed: "{{ delete_result.results | selectattr('failed') | map(attribute='item') | list }}"
+        clone_failed: "{{ clone_result.results | rejectattr('skipped', 'defined') | selectattr('failed') | map(attribute='item.item') | list }}"
+      ansible.builtin.debug:
+        msg:
+          - "Cloned OK: {{ target_vms | difference(delete_failed) | difference(clone_failed) }}"
+          - "Skipped (delete failed, VM left intact): {{ delete_failed }}"
+          - "DELETED BUT NOT CLONED: {{ clone_failed }}"
