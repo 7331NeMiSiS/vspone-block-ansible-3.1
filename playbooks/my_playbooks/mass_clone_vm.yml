@@ -9,6 +9,7 @@
     datacenter: "YOUR_DATACENTER"
     source_vm: "Casino-App-98"
     clone_power_state: poweredon
+    datastore: Casino-DS01
     target_vms:
       - Casino-AD01
       - Casino-App-02
@@ -46,9 +47,9 @@
         datacenter: "{{ datacenter }}"
         name: "{{ item.item }}"
         template: "{{ source_vm }}"
-        cluster: Production
-        resource_pool: Casino
-        datastore: Casino-DS01
+        cluster: DC1-Cluster
+        resource_pool: WORKLOADS
+        datastore: "{{datastore}}"
         folder: Casino
         state: "{{ clone_power_state }}"
       loop: "{{ delete_result.results }}"
