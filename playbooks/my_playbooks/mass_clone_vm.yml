@@ -53,7 +53,7 @@
         cluster: "{{ cluster }}"
         resource_pool: "{{ resource_pool }}"
         datastore: "{{ datastore }}"
-        folder: "{{ datastore }}"
+        folder: "{{ folder }}"
         state: "{{ clone_power_state }}"
       loop: "{{ delete_result.results }}"
       loop_control:
