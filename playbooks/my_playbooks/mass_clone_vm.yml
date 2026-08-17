@@ -10,6 +10,9 @@
     source_vm: "Casino-App-98"
     clone_power_state: poweredon
     datastore: Casino-DS01
+    cluster: DC1-Cluster
+    resource_pool: WORKLOADS
+    folder: Casino
     target_vms:
       - Casino-AD01
       - Casino-App-02
@@ -47,10 +50,10 @@
         datacenter: "{{ datacenter }}"
         name: "{{ item.item }}"
         template: "{{ source_vm }}"
-        cluster: DC1-Cluster
-        resource_pool: WORKLOADS
-        datastore: "{{datastore}}"
-        folder: Casino
+        cluster: "{{ cluster }}"
+        resource_pool: "{{ resource_pool }}"
+        datastore: "{{ datastore }}"
+        folder: "{{ datastore }}"
         state: "{{ clone_power_state }}"
       loop: "{{ delete_result.results }}"
       loop_control:
