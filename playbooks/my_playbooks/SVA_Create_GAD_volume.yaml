@@ -259,7 +259,7 @@
     ####################################################################
     - name: Present volume to secondary server hostgroups
       hitachivantara.vspone_block.vsp.hv_hg:
-        connection_info: "{{ connection_info }}"
+        connection_info: "{{ secondary_connection_info }}"
         state: "present"
         spec:
           state: "present_ldev"
